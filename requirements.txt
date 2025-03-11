@@ -5,3 +5,4 @@ torchvision
 openhgnn
 --find-links https://data.dgl.ai/wheels/repo.html
 dgl
+scikit-learn

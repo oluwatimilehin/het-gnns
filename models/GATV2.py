@@ -1,5 +1,5 @@
 """
-From https://github.com/dmlc/dgl/tree/master/examples/pytorch/gatv2 
+From https://github.com/dmlc/dgl/tree/master/examples/pytorch/gatv2
 """
 
 import torch

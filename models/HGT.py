@@ -12,6 +12,7 @@ from dgl.nn.functional import edge_softmax
 From https://github.com/dmlc/dgl/tree/master/examples/pytorch/hgt
 """
 
+
 class HGT(nn.Module):
     def __init__(
         self,
@@ -59,7 +60,6 @@ class HGT(nn.Module):
         return self.out(h[out_key])
 
 
-
 class HGTLayer(nn.Module):
     def __init__(
         self,
@@ -100,9 +100,7 @@ class HGTLayer(nn.Module):
             if use_norm:
                 self.norms.append(nn.LayerNorm(out_dim))
 
-        self.relation_pri = nn.Parameter(
-            torch.ones(self.num_relations, self.n_heads)
-        )
+        self.relation_pri = nn.Parameter(torch.ones(self.num_relations, self.n_heads))
         self.relation_att = nn.Parameter(
             torch.Tensor(self.num_relations, n_heads, self.d_k, self.d_k)
         )
@@ -144,9 +142,7 @@ class HGTLayer(nn.Module):
 
                 sub_graph.apply_edges(fn.v_dot_u("q", "k", "t"))
                 attn_score = (
-                    sub_graph.edata.pop("t").sum(-1)
-                    * relation_pri
-                    / self.sqrt_dk
+                    sub_graph.edata.pop("t").sum(-1) * relation_pri / self.sqrt_dk
                 )
                 attn_score = edge_softmax(sub_graph, attn_score, norm_by="dst")
 
