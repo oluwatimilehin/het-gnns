@@ -2,7 +2,6 @@
 From https://github.com/dmlc/dgl/tree/master/examples/pytorch/gatv2
 """
 
-import torch
 import torch.nn as nn
 
 from dgl.nn import GATv2Conv

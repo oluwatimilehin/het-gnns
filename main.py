@@ -2,14 +2,15 @@ import numpy as np
 import dgl
 import torch
 
-from trainers.GATV2Trainer import GATV2Trainer
+from trainers.HANTrainer import HANTrainer
 from trainers.HGTTrainer import HGTTrainer
+from trainers.GATV2Trainer import GATV2Trainer
 
 
 def populate_graph_node_data(
     hetero_graph, node_type, num_nodes, num_classes, num_features
 ):
-    hetero_graph.nodes[node_type].data["feature"] = torch.randn(num_nodes, num_features)
+    hetero_graph.nodes[node_type].data["feat"] = torch.randn(num_nodes, num_features)
     hetero_graph.nodes[node_type].data["label"] = torch.randint(
         0, num_classes, (num_nodes,)
     )
@@ -79,17 +80,30 @@ if __name__ == "__main__":
         n_clicks, dtype=torch.bool
     ).bernoulli(0.6)
 
-    hgt_trainer = HGTTrainer(
-        hetero_graph, output_dim=n_user_classes, input_dim=n_hetero_features
+    # HAN
+    han_trainer = HANTrainer(
+        hetero_graph,
+        input_dim=n_hetero_features,
+        output_dim=n_user_classes,
+        meta_paths=[["dislike", "disliked-by"], ["click", "clicked-by"]],
     )
-    hgt_trainer.run(predict_node_type="user")
+    han_trainer.run(predicted_node_type="user")
 
+    # HGT
+    hgt_trainer = HGTTrainer(
+        hetero_graph,
+        input_dim=n_hetero_features,
+        output_dim=n_user_classes,
+    )
+    hgt_trainer.run(predicted_node_type="user")
+
+    # GATV2
     gat_trainer = GATV2Trainer(
         dgl.to_homogeneous(
             hetero_graph,
-            ndata=["feature", "label", "test_mask", "train_mask", "val_mask"],
+            ndata=["feat", "label", "test_mask", "train_mask", "val_mask"],
         ),
-        output_dim=n_user_classes,
         input_dim=n_hetero_features,
+        output_dim=n_user_classes,
     )
     gat_trainer.run()

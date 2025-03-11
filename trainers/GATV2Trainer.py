@@ -12,11 +12,11 @@ class GATV2Trainer:
         g,
         input_dim,
         output_dim,
+        hidden_dim=256,
         gpu=-1,
         num_heads=4,
         num_out_heads=1,
         num_layers=2,
-        num_hidden=256,
         residual=False,
         input_feature_dropout=0.7,
         attention_dropout=0.7,
@@ -36,7 +36,7 @@ class GATV2Trainer:
         self.model = GATv2(
             num_layers,
             input_dim,
-            num_hidden,
+            hidden_dim,
             output_dim,
             heads,
             F.elu,
@@ -57,6 +57,7 @@ class GATV2Trainer:
         early_stop=False,
         fast_mode=False,
     ):
+        print(f"Running GATTrainer")
         optimizer = torch.optim.Adam(
             params=self.model.parameters(), lr=lr, weight_decay=weight_decay
         )
@@ -64,7 +65,7 @@ class GATV2Trainer:
         if early_stop:
             stopper = EarlyStopping(patience=100)
 
-        features = self.g.ndata["feature"]
+        features = self.g.ndata["feat"]
 
         labels = self.g.ndata["label"]
         train_mask = self.g.ndata["train_mask"]
@@ -85,14 +86,10 @@ class GATV2Trainer:
             optimizer.step()
 
             if epoch >= 3:
-                train_acc = Util.accuracy(
-                    logits[train_mask], labels[train_mask]
-                )
+                train_acc = Util.accuracy(logits[train_mask], labels[train_mask])
 
                 if fast_mode:
-                    val_acc = Util.accuracy(
-                        logits[val_mask], labels[val_mask]
-                    )
+                    val_acc = Util.accuracy(logits[val_mask], labels[val_mask])
                 else:
                     val_acc = Util.evaluate(
                         self.g, self.model, features, labels, val_mask
@@ -111,7 +108,5 @@ class GATV2Trainer:
                 torch.load("es_checkpoint.pt", weights_only=False)
             )
 
-        acc = Util.evaluate(
-            self.g, self.model, features, labels, test_mask
-        )
+        acc = Util.evaluate(self.g, self.model, features, labels, test_mask)
         print(f"Test Accuracy {acc:.4f}")
