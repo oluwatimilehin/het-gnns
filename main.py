@@ -2,6 +2,8 @@ import numpy as np
 import dgl
 import torch
 
+from data.acm import ACMDataset
+
 from trainers.HANTrainer import HANTrainer
 from trainers.HGTTrainer import HGTTrainer
 from trainers.GATV2Trainer import GATV2Trainer
@@ -25,6 +27,20 @@ def populate_graph_node_data(
     ).bernoulli(0.6)
 
     return hetero_graph
+
+
+def test_han_acm():
+    # Function to test the HAN implementation
+    data = ACMDataset()
+    g = data[0]
+
+    ntype = data.predict_ntype
+    input_dim = g.nodes[ntype].data["feat"].shape[1]
+    han_trainer = HANTrainer(
+        g, input_dim=input_dim, output_dim=data.num_classes, meta_paths=data.metapaths
+    )
+
+    han_trainer.run(ntype)
 
 
 if __name__ == "__main__":
@@ -79,6 +95,8 @@ if __name__ == "__main__":
     hetero_graph.edges["click"].data["train_mask"] = torch.zeros(
         n_clicks, dtype=torch.bool
     ).bernoulli(0.6)
+
+    test_han_acm()
 
     # HAN
     han_trainer = HANTrainer(
