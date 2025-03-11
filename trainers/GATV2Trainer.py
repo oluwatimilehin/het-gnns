@@ -1,5 +1,3 @@
-import time
-
 import dgl
 import torch
 import torch.nn.functional as F
@@ -12,12 +10,13 @@ class GATV2Trainer:
     def __init__(
         self,
         g,
-        num_classes,
+        input_dim,
+        output_dim,
         gpu=-1,
-        num_heads=8,
+        num_heads=4,
         num_out_heads=1,
-        num_layers=1,
-        num_hidden=8,
+        num_layers=2,
+        num_hidden=256,
         residual=False,
         input_feature_dropout=0.7,
         attention_dropout=0.7,
@@ -30,23 +29,15 @@ class GATV2Trainer:
             self.cuda = True
             g = g.int().to(gpu)
 
-        self.features = g.ndata["feat"]
-        num_feats = self.features.shape[1]
-
-        self.labels = g.ndata["label"]
-        self.train_mask = g.ndata["train_mask"]
-        self.val_mask = g.ndata["val_mask"]
-        self.test_mask = g.ndata["test_mask"]
-
         g = dgl.remove_self_loop(g)
         self.g = dgl.add_self_loop(g)
 
         heads = ([num_heads] * num_layers) + [num_out_heads]
         self.model = GATv2(
             num_layers,
-            num_feats,
+            input_dim,
             num_hidden,
-            num_classes,
+            output_dim,
             heads,
             F.elu,
             input_feature_dropout,
@@ -58,7 +49,7 @@ class GATV2Trainer:
         if self.cuda:
             self.model.cuda()
 
-    def train(
+    def run(
         self,
         num_epochs=200,
         lr=0.005,
@@ -66,23 +57,28 @@ class GATV2Trainer:
         early_stop=False,
         fast_mode=False,
     ):
-        optimizer = torch.optim.Adam(self.model.parameters(), lr, weight_decay)
+        optimizer = torch.optim.Adam(
+            params=self.model.parameters(), lr=lr, weight_decay=weight_decay
+        )
 
         if early_stop:
             stopper = EarlyStopping(patience=100)
 
-        mean = 0
+        features = self.g.ndata["feature"]
+
+        labels = self.g.ndata["label"]
+        train_mask = self.g.ndata["train_mask"]
+        val_mask = self.g.ndata["val_mask"]
+        test_mask = self.g.ndata["test_mask"]
+
         for epoch in range(num_epochs):
             self.model.train()
 
-            if epoch >= 3:
-                t0 = time.time()
-
             # forward
-            logits = self.model(self.g, self.features)
+            logits = self.model(self.g, features)
 
             loss_fcn = torch.nn.CrossEntropyLoss()
-            loss = loss_fcn(logits[self.train_mask], self.labels[self.train_mask])
+            loss = loss_fcn(logits[train_mask], labels[train_mask])
 
             optimizer.zero_grad()
             loss.backward()
@@ -90,16 +86,16 @@ class GATV2Trainer:
 
             if epoch >= 3:
                 train_acc = Util.accuracy(
-                    logits[self.train_mask], self.labels[self.train_mask]
+                    logits[train_mask], labels[train_mask]
                 )
 
                 if fast_mode:
                     val_acc = Util.accuracy(
-                        logits[self.val_mask], self.labels[self.val_mask]
+                        logits[val_mask], labels[val_mask]
                     )
                 else:
                     val_acc = Util.evaluate(
-                        self.g, self.model, self.features, self.labels, self.val_mask
+                        self.g, self.model, features, labels, val_mask
                     )
                     if early_stop:
                         if stopper.step(val_acc, self.model):
@@ -116,6 +112,6 @@ class GATV2Trainer:
             )
 
         acc = Util.evaluate(
-            self.g, self.model, self.features, self.labels, self.test_mask
+            self.g, self.model, features, labels, test_mask
         )
         print(f"Test Accuracy {acc:.4f}")

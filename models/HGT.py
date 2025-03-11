@@ -54,7 +54,7 @@ class HGT(nn.Module):
         h = {}
         for ntype in G.ntypes:
             n_id = self.node_dict[ntype]
-            h[ntype] = F.gelu(self.adapt_ws[n_id](G.nodes[ntype].data["inp"]))
+            h[ntype] = F.gelu(self.adapt_ws[n_id](G.nodes[ntype].data["feature"]))
         for i in range(self.n_layers):
             h = self.gcs[i](G, h)
         return self.out(h[out_key])
