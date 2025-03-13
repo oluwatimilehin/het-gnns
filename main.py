@@ -7,6 +7,7 @@ from data.acm import ACMDataset
 from trainers.HANTrainer import HANTrainer
 from trainers.HGTTrainer import HGTTrainer
 from trainers.GATV2Trainer import GATV2Trainer
+from trainers.SimpleHGNTrainer import SimpleHGNTrainer
 
 
 def populate_graph_node_data(
@@ -29,13 +30,19 @@ def populate_graph_node_data(
     return hetero_graph
 
 
-def test_han_acm():
-    # Function to test the HAN implementation
+def test_acm():
+    # Function to verify the heterogenous models by evaluating them on the ACM dataset
     data = ACMDataset()
     g = data[0]
 
     ntype = data.predict_ntype
     input_dim = g.nodes[ntype].data["feat"].shape[1]
+
+    simplehgt_trainer = SimpleHGNTrainer(
+        g, input_dim=input_dim, output_dim=data.num_classes
+    )
+    simplehgt_trainer.run(ntype)
+
     han_trainer = HANTrainer(
         g, input_dim=input_dim, output_dim=data.num_classes, meta_paths=data.metapaths
     )
@@ -96,7 +103,13 @@ if __name__ == "__main__":
         n_clicks, dtype=torch.bool
     ).bernoulli(0.6)
 
-    test_han_acm()
+    test_acm()
+
+    # SimpleHGN
+    simple_hgn_trainer = SimpleHGNTrainer(
+        hetero_graph, input_dim=n_hetero_features, output_dim=n_user_classes
+    )
+    simple_hgn_trainer.run(predicted_node_type="user")
 
     # HAN
     han_trainer = HANTrainer(

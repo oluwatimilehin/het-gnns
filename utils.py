@@ -45,3 +45,12 @@ class Util:
             logits = logits[mask]
             labels = labels[mask]
             return cls.accuracy(logits, labels)
+
+    @classmethod
+    def evaluate_dict(cls, g, model, features_dict, category, labels, mask):
+        model.eval()
+        with torch.no_grad():
+            logits = model(g, features_dict)[category]
+            logits = logits[mask]
+            labels = labels[mask]
+            return cls.accuracy(logits, labels)
