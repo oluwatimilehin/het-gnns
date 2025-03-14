@@ -1,177 +1,241 @@
+"""Heterogeneous Graph Transformer (HGT)"""
+
 import math
 
-import dgl
 import dgl.function as fn
-
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from dgl.nn.functional import edge_softmax
+from dgl.nn import HeteroGraphConv
+from dgl.ops import edge_softmax
+from dgl.utils import expand_as_pair
+
 
 """
-From https://github.com/dmlc/dgl/tree/master/examples/pytorch/hgt
+Adapted from https://github.com/ZZy979/pytorch-tutorial/blob/master/gnn/hgt/model.py
 """
 
 
 class HGT(nn.Module):
+
     def __init__(
         self,
-        G,
-        node_dict,
-        edge_dict,
-        n_inp,
-        n_hid,
-        n_out,
-        n_layers,
-        n_heads,
+        in_dims,
+        hidden_dim,
+        out_dim,
+        num_heads,
+        ntypes,
+        etypes,
+        category,
+        num_layers,
+        dropout=0.2,
         use_norm=True,
     ):
-        super(HGT, self).__init__()
-        self.node_dict = node_dict
-        self.edge_dict = edge_dict
-        self.gcs = nn.ModuleList()
-        self.n_inp = n_inp
-        self.n_hid = n_hid
-        self.n_out = n_out
-        self.n_layers = n_layers
-        self.adapt_ws = nn.ModuleList()
-        for t in range(len(node_dict)):
-            self.adapt_ws.append(nn.Linear(n_inp, n_hid))
-        for _ in range(n_layers):
-            self.gcs.append(
-                HGTLayer(
-                    n_hid,
-                    n_hid,
-                    node_dict,
-                    edge_dict,
-                    n_heads,
-                    use_norm=use_norm,
-                )
-            )
-        self.out = nn.Linear(n_hid, n_out)
+        """HGT
 
-    def forward(self, G, out_key):
-        h = {}
-        for ntype in G.ntypes:
-            n_id = self.node_dict[ntype]
-            h[ntype] = F.gelu(self.adapt_ws[n_id](G.nodes[ntype].data["feat"]))
-        for i in range(self.n_layers):
-            h = self.gcs[i](G, h)
-        return self.out(h[out_key])
+        :param in_dims: Dict[str, int]
+        :param hidden_dim: int
+        :param out_dim: int
+        :param num_heads: int
+        :param ntypes: List[str]
+        :param etypes: List[(str, str, str)]
+        :param predict_ntype: str
+        :param num_layers: int
+        :param dropout: dropout: float,
+        :param use_norm: bool,
+        """
+        super().__init__()
+        self.category = category
+        self.adapt_fcs = nn.ModuleDict(
+            {ntype: nn.Linear(in_dim, hidden_dim) for ntype, in_dim in in_dims.items()}
+        )
+        self.layers = nn.ModuleList(
+            [
+                HGTLayer(
+                    hidden_dim, hidden_dim, num_heads, ntypes, etypes, dropout, use_norm
+                )
+                for _ in range(num_layers)
+            ]
+        )
+        self.predict = nn.Linear(hidden_dim, out_dim)
+
+    def forward(self, g, feats):
+        """
+        :param g: DGLGraph
+        :param feats: Dict[str, tensor(N_i, d_in)]
+        :return: tensor(N_i, d_out)
+        """
+        hs = {ntype: F.gelu(self.adapt_fcs[ntype](feats[ntype])) for ntype in feats}
+        for layer in self.layers:
+            hs = layer(g, hs)  # {ntype: tensor(N_i, d_hid)}
+        out = self.predict(hs[self.category])  # tensor(N_i, d_out)
+        return out
+
+
+class HGTAttention(nn.Module):
+
+    def __init__(
+        self, out_dim, num_heads, k_linear, q_linear, v_linear, w_att, w_msg, mu
+    ):
+        """HGT
+
+        :param out_dim: int
+        :param num_heads: int
+        :param k_linear: nn.Linear(d_in, d_out)
+        :param q_linear: nn.Linear(d_in, d_out)
+        :param v_linear: nn.Linear(d_in, d_out)
+        :param w_att: tensor(K, d_out/K, d_out/K)
+        :param w_msg: tensor(K, d_out/K, d_out/K)
+        :param mu: tensor(1)
+        """
+        super().__init__()
+        self.out_dim = out_dim
+        self.num_heads = num_heads
+        self.d_k = out_dim // num_heads
+        self.k_linear = k_linear
+        self.q_linear = q_linear
+        self.v_linear = v_linear
+        self.w_att = w_att
+        self.w_msg = w_msg
+        self.mu = mu
+
+    def forward(self, g, feat):
+        """
+        :param g: DGLGraph
+        :param feat: tensor(N_src, d_in) or (tensor(N_src, d_in), tensor(N_dst, d_in))
+        :return: tensor(N_dst, d_out)
+        """
+        with g.local_scope():
+            feat_src, feat_dst = expand_as_pair(feat, g)
+            # (N_src, d_in) -> (N_src, d_out) -> (N_src, K, d_out/K)
+            k = self.k_linear(feat_src).view(-1, self.num_heads, self.d_k)
+            v = self.v_linear(feat_src).view(-1, self.num_heads, self.d_k)
+            q = self.q_linear(feat_dst).view(-1, self.num_heads, self.d_k)
+
+            # k[:, h] @= w_att[h] => k[n, h, j] = ∑(i) k[n, h, i] * w_att[h, i, j]
+            k = torch.einsum("nhi,hij->nhj", k, self.w_att)
+            v = torch.einsum("nhi,hij->nhj", v, self.w_msg)
+
+            g.srcdata.update({"k": k, "v": v})
+            g.dstdata["q"] = q
+            g.apply_edges(fn.v_dot_u("q", "k", "t"))  # g.edata['t']: (E, K, 1)
+            attn = g.edata.pop("t").squeeze(dim=-1) * self.mu / math.sqrt(self.d_k)
+            attn = edge_softmax(g, attn)  # (E, K)
+            g.edata["t"] = attn.unsqueeze(dim=-1)  # (E, K, 1)
+
+            g.update_all(fn.u_mul_e("v", "t", "m"), fn.sum("m", "h"))
+            out = g.dstdata["h"].view(-1, self.out_dim)  # (N_dst, d_out)
+            return out
 
 
 class HGTLayer(nn.Module):
+
     def __init__(
-        self,
-        in_dim,
-        out_dim,
-        node_dict,
-        edge_dict,
-        n_heads,
-        dropout=0.2,
-        use_norm=False,
+        self, in_dim, out_dim, num_heads, ntypes, etypes, dropout=0.2, use_norm=True
     ):
-        super(HGTLayer, self).__init__()
+        """HGT层
 
-        self.in_dim = in_dim
-        self.out_dim = out_dim
-        self.node_dict = node_dict
-        self.edge_dict = edge_dict
-        self.num_types = len(node_dict)
-        self.num_relations = len(edge_dict)
-        self.total_rel = self.num_types * self.num_relations * self.num_types
-        self.n_heads = n_heads
-        self.d_k = out_dim // n_heads
-        self.sqrt_dk = math.sqrt(self.d_k)
-        self.att = None
-
-        self.k_linears = nn.ModuleList()
-        self.q_linears = nn.ModuleList()
-        self.v_linears = nn.ModuleList()
-        self.a_linears = nn.ModuleList()
-        self.norms = nn.ModuleList()
-        self.use_norm = use_norm
-
-        for t in range(self.num_types):
-            self.k_linears.append(nn.Linear(in_dim, out_dim))
-            self.q_linears.append(nn.Linear(in_dim, out_dim))
-            self.v_linears.append(nn.Linear(in_dim, out_dim))
-            self.a_linears.append(nn.Linear(out_dim, out_dim))
-            if use_norm:
-                self.norms.append(nn.LayerNorm(out_dim))
-
-        self.relation_pri = nn.Parameter(torch.ones(self.num_relations, self.n_heads))
-        self.relation_att = nn.Parameter(
-            torch.Tensor(self.num_relations, n_heads, self.d_k, self.d_k)
+        :param in_dim: int
+        :param out_dim: int
+        :param num_heads: int
+        :param ntypes: List[str]
+        :param etypes: List[(str, str, str)]
+        :param dropout: dropout: float,
+        :param use_norm: bool
+        """
+        super().__init__()
+        d_k = out_dim // num_heads
+        k_linear = {ntype: nn.Linear(in_dim, out_dim) for ntype in ntypes}
+        q_linear = {ntype: nn.Linear(in_dim, out_dim) for ntype in ntypes}
+        v_linear = {ntype: nn.Linear(in_dim, out_dim) for ntype in ntypes}
+        w_att = {r[1]: nn.Parameter(torch.Tensor(num_heads, d_k, d_k)) for r in etypes}
+        w_msg = {r[1]: nn.Parameter(torch.Tensor(num_heads, d_k, d_k)) for r in etypes}
+        mu = {r[1]: nn.Parameter(torch.ones(num_heads)) for r in etypes}
+        self.reset_parameters(w_att, w_msg)
+        self.conv = HeteroGraphConv(
+            {
+                etype: HGTAttention(
+                    out_dim,
+                    num_heads,
+                    k_linear[stype],
+                    q_linear[dtype],
+                    v_linear[stype],
+                    w_att[etype],
+                    w_msg[etype],
+                    mu[etype],
+                )
+                for stype, etype, dtype in etypes
+            },
+            "mean",
         )
-        self.relation_msg = nn.Parameter(
-            torch.Tensor(self.num_relations, n_heads, self.d_k, self.d_k)
+
+        self.a_linear = nn.ModuleDict(
+            {ntype: nn.Linear(out_dim, out_dim) for ntype in ntypes}
         )
-        self.skip = nn.Parameter(torch.ones(self.num_types))
+        self.skip = nn.ParameterDict(
+            {ntype: nn.Parameter(torch.ones(1)) for ntype in ntypes}
+        )
         self.drop = nn.Dropout(dropout)
 
-        nn.init.xavier_uniform_(self.relation_att)
-        nn.init.xavier_uniform_(self.relation_msg)
-
-    def forward(self, G, h):
-        with G.local_scope():
-            node_dict, edge_dict = self.node_dict, self.edge_dict
-            for srctype, etype, dsttype in G.canonical_etypes:
-                sub_graph = G[srctype, etype, dsttype]
-
-                k_linear = self.k_linears[node_dict[srctype]]
-                v_linear = self.v_linears[node_dict[srctype]]
-                q_linear = self.q_linears[node_dict[dsttype]]
-
-                k = k_linear(h[srctype]).view(-1, self.n_heads, self.d_k)
-                v = v_linear(h[srctype]).view(-1, self.n_heads, self.d_k)
-                q = q_linear(h[dsttype]).view(-1, self.n_heads, self.d_k)
-
-                e_id = self.edge_dict[etype]
-
-                relation_att = self.relation_att[e_id]
-                relation_pri = self.relation_pri[e_id]
-                relation_msg = self.relation_msg[e_id]
-
-                k = torch.einsum("bij,ijk->bik", k, relation_att)
-                v = torch.einsum("bij,ijk->bik", v, relation_msg)
-
-                sub_graph.srcdata["k"] = k
-                sub_graph.dstdata["q"] = q
-                sub_graph.srcdata["v_%d" % e_id] = v
-
-                sub_graph.apply_edges(fn.v_dot_u("q", "k", "t"))
-                attn_score = (
-                    sub_graph.edata.pop("t").sum(-1) * relation_pri / self.sqrt_dk
-                )
-                attn_score = edge_softmax(sub_graph, attn_score, norm_by="dst")
-
-                sub_graph.edata["t"] = attn_score.unsqueeze(-1)
-
-            G.multi_update_all(
-                {
-                    etype: (
-                        fn.u_mul_e("v_%d" % e_id, "t", "m"),
-                        fn.sum("m", "t"),
-                    )
-                    for etype, e_id in edge_dict.items()
-                },
-                cross_reducer="mean",
+        self.use_norm = use_norm
+        if use_norm:
+            self.norms = nn.ModuleDict(
+                {ntype: nn.LayerNorm(out_dim) for ntype in ntypes}
             )
 
-            new_h = {}
-            for ntype in G.ntypes:
-                """
-                Step 3: Target-specific Aggregation
-                x = norm( W[node_type] * gelu( Agg(x) ) + x )
-                """
-                n_id = node_dict[ntype]
-                alpha = torch.sigmoid(self.skip[n_id])
-                t = G.nodes[ntype].data["t"].view(-1, self.out_dim)
-                trans_out = self.drop(self.a_linears[n_id](t))
-                trans_out = trans_out * alpha + h[ntype] * (1 - alpha)
-                if self.use_norm:
-                    new_h[ntype] = self.norms[n_id](trans_out)
-                else:
-                    new_h[ntype] = trans_out
-            return new_h
+    def reset_parameters(self, w_att, w_msg):
+        for etype in w_att:
+            nn.init.xavier_uniform_(w_att[etype])
+            nn.init.xavier_uniform_(w_msg[etype])
+
+    def forward(self, g, feats):
+        """
+        :param g: DGLGraph
+        :param feats: Dict[str, tensor(N_i, d_in)]
+        :return: Dict[str, tensor(N_i, d_out)]
+        """
+        if g.is_block:
+            feats_dst = {
+                ntype: feats[ntype][: g.num_dst_nodes(ntype)] for ntype in feats
+            }
+        else:
+            feats_dst = feats
+        with g.local_scope():
+
+            hs = self.conv(g, (feats, feats))  # {ntype: tensor(N_i, d_out)}
+
+            out_feats = {}
+            for ntype in g.dsttypes:
+                if g.num_dst_nodes(ntype) == 0:
+                    continue
+                alpha = torch.sigmoid(self.skip[ntype])
+                trans_out = self.drop(self.a_linear[ntype](hs[ntype]))
+                out = alpha * trans_out + (1 - alpha) * feats_dst[ntype]
+                out_feats[ntype] = self.norms[ntype](out) if self.use_norm else out
+            return out_feats
+
+
+class RelativeTemporalEncoding(nn.Module):
+
+    def __init__(self, dim, t_max=240):
+        r"""
+
+        .. math::
+          Base(\Delta T, 2i) = \sin(\Delta T / 10000^{2i/d}) \\
+          Base(\Delta T, 2i+1) = \sin(\Delta T / 10000^{2i+1/d}) \\
+          RTE(\Delta T) = T-Linear(Base(\Delta T))
+
+        :param dim: int
+        :param t_max: int ΔT∈[0, t_max)
+        """
+        super().__init__()
+        t = torch.arange(t_max).unsqueeze(1)
+        # 10000^(i/d) = e^((i/d)*ln 10000)
+        denominator = torch.exp(torch.arange(dim) * math.log(10000.0) / dim)  #
+        self.base = t / denominator
+        self.base[:, 0::2] = torch.sin(self.base[:, 0::2])
+        self.base[:, 1::2] = torch.cos(self.base[:, 1::2])
+        self.t_linear = nn.Linear(dim, dim)
+
+    def forward(self, delta_t):
+        return self.t_linear(self.base[delta_t])

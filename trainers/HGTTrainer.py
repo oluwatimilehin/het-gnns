@@ -27,25 +27,15 @@ class HGTTrainer:
 
         self.g = g
 
-        node_dict = {}
-        edge_dict = {}
-        for ntype in self.g.ntypes:
-            node_dict[ntype] = len(node_dict)
-        for etype in self.g.etypes:
-            edge_dict[etype] = len(edge_dict)
-            self.g.edges[etype].data["id"] = (
-                torch.ones(self.g.num_edges(etype), dtype=torch.long) * edge_dict[etype]
-            )
-
         self.model = HGT(
-            g,
-            node_dict=node_dict,
-            edge_dict=edge_dict,
-            n_inp=input_dim,
-            n_hid=hidden_dim,
-            n_out=output_dim,
-            n_layers=num_layers,
-            n_heads=num_heads,
+            in_dims={ntype: g.nodes[ntype].data["feat"].shape[1] for ntype in g.ntypes},
+            hidden_dim=hidden_dim,
+            out_dim=output_dim,
+            num_heads=num_heads,
+            ntypes=g.ntypes,
+            etypes=g.canonical_etypes,
+            category=category,
+            num_layers=num_layers,
             use_norm=use_norm,
         )
 
@@ -61,6 +51,7 @@ class HGTTrainer:
             optimizer, total_steps=num_epochs, max_lr=max_lr
         )
 
+        features = {ntype: self.g.nodes[ntype].data["feat"] for ntype in self.g.ntypes}
         labels = self.g.nodes[self.category].data["label"]
         test_mask = self.g.nodes[self.category].data["test_mask"]
         train_mask = self.g.nodes[self.category].data["train_mask"]
@@ -69,7 +60,7 @@ class HGTTrainer:
         for epoch in range(num_epochs):
             self.model.train()
 
-            logits = self.model(self.g, self.category)
+            logits = self.model(self.g, features)
 
             loss = F.cross_entropy(
                 logits[train_mask],
@@ -91,7 +82,7 @@ class HGTTrainer:
                 val_acc = Util.evaluate(
                     self.g,
                     self.model,
-                    self.category,
+                    features,
                     labels,
                     val_mask,
                 )
@@ -104,7 +95,7 @@ class HGTTrainer:
         acc = Util.evaluate(
             self.g,
             self.model,
-            self.category,
+            features,
             labels,
             test_mask,
         )

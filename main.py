@@ -36,9 +36,14 @@ def test_acm():
     data = ACMDataset()
     g = data[0]
 
-    num_epochs = 5
+    num_epochs = 100
     ntype = data.predict_ntype
     input_dim = g.nodes[ntype].data["feat"].shape[1]
+
+    hgt_trainer = HGTTrainer(
+        g, input_dim=input_dim, output_dim=data.num_classes, category=ntype
+    )
+    hgt_trainer.run(num_epochs=num_epochs)
 
     fastgtn_trainer = FastGTNTrainer(
         g, input_dim=input_dim, output_dim=data.num_classes, category=ntype
@@ -116,6 +121,16 @@ if __name__ == "__main__":
     test_acm()
 
     category = "user"
+
+    # HGT
+    hgt_trainer = HGTTrainer(
+        hetero_graph,
+        input_dim=n_hetero_features,
+        output_dim=n_user_classes,
+        category=category,
+    )
+    hgt_trainer.run()
+
     # SimpleHGN
     simple_hgn_trainer = SimpleHGNTrainer(
         hetero_graph,
@@ -134,15 +149,6 @@ if __name__ == "__main__":
         category=category,
     )
     han_trainer.run()
-
-    # HGT
-    hgt_trainer = HGTTrainer(
-        hetero_graph,
-        input_dim=n_hetero_features,
-        output_dim=n_user_classes,
-        category=category,
-    )
-    hgt_trainer.run()
 
     # GATV2
     # TODO: I think I need to zero-pad any node types, instead of ensuring that all the types have the same features

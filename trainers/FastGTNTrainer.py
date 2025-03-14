@@ -50,7 +50,6 @@ class FastGTNTrainer:
             params=self.model.parameters(), lr=lr, weight_decay=weight_decay
         )
 
-        features = self.g.nodes[self.category].data["feat"]
         labels = self.g.nodes[self.category].data["label"]
         test_mask = self.g.nodes[self.category].data["test_mask"]
         train_mask = self.g.nodes[self.category].data["train_mask"]
