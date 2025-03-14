@@ -193,7 +193,15 @@ class SimpleHGN(nn.Module):
                 if h_dict[ntype].shape[1] < max_feat_size:
                     pad_size = max_feat_size - h_dict[ntype].shape[1]
                     h_dict[ntype] = torch.cat(
-                        [h_dict[ntype], torch.zeros(h_dict[ntype].shape[0], pad_size, device=h_dict[ntype].device)], dim=1
+                        [
+                            h_dict[ntype],
+                            torch.zeros(
+                                h_dict[ntype].shape[0],
+                                pad_size,
+                                device=h_dict[ntype].device,
+                            ),
+                        ],
+                        dim=1,
                     )
 
             hg.ndata["h"] = h_dict

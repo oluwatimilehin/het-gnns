@@ -1,4 +1,3 @@
-import dgl
 import torch
 import torch.nn.functional as F
 
@@ -12,6 +11,7 @@ class SimpleHGNTrainer:
         g,
         input_dim,
         output_dim,
+        category,
         edge_dim=64,
         gpu=-1,
         hidden_dim=256,
@@ -44,28 +44,28 @@ class SimpleHGNTrainer:
             ntypes=g.ntypes,
         )
 
+        self.category = category
         if self.cuda:
             self.model.cuda()
 
-    def run(self, predicted_node_type, num_epochs=200, lr=1e-3, weight_decay=5e-4):
+    def run(self, num_epochs=200, lr=1e-3, weight_decay=5e-4):
         print(f"Running SimpleHGNTrainer")
 
         optimizer = torch.optim.Adam(
             params=self.model.parameters(), lr=lr, weight_decay=weight_decay
         )
 
-        features = self.g.nodes[predicted_node_type].data["feat"]
-        labels = self.g.nodes[predicted_node_type].data["label"]
-        test_mask = self.g.nodes[predicted_node_type].data["test_mask"]
-        train_mask = self.g.nodes[predicted_node_type].data["train_mask"]
-        val_mask = self.g.nodes[predicted_node_type].data["val_mask"]
+        labels = self.g.nodes[self.category].data["label"]
+        test_mask = self.g.nodes[self.category].data["test_mask"]
+        train_mask = self.g.nodes[self.category].data["train_mask"]
+        val_mask = self.g.nodes[self.category].data["val_mask"]
 
         h_dict = {ntype: self.g.nodes[ntype].data["feat"] for ntype in self.g.ntypes}
 
         for epoch in range(num_epochs):
             self.model.train()
 
-            logits = self.model(self.g, h_dict)[predicted_node_type]
+            logits = self.model(self.g, h_dict)[self.category]
             loss = F.cross_entropy(
                 logits[train_mask],
                 labels[train_mask],
@@ -85,7 +85,7 @@ class SimpleHGNTrainer:
                     self.g,
                     self.model,
                     h_dict,
-                    predicted_node_type,
+                    self.category,
                     labels,
                     val_mask,
                 )
@@ -96,6 +96,6 @@ class SimpleHGNTrainer:
                 )
 
         acc = Util.evaluate_dict(
-            self.gs, self.model, h_dict, predicted_node_type, labels, test_mask
+            self.g, self.model, h_dict, self.category, labels, test_mask
         )
         print(f"Test Accuracy {acc:.4f}")

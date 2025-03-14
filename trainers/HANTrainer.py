@@ -13,6 +13,7 @@ class HANTrainer:
         input_dim,
         output_dim,
         meta_paths,
+        category,
         hidden_dim=256,
         gpu=-1,
         num_heads=4,
@@ -40,20 +41,21 @@ class HANTrainer:
             dropout=dropout,
         )
 
+        self.category = category
         if self.cuda:
             self.model.cuda()
 
-    def run(self, predicted_node_type, num_epochs=200, lr=1e-3, weight_decay=5e-4):
+    def run(self, num_epochs=200, lr=1e-3, weight_decay=5e-4):
         print(f"Running HANTrainer")
         optimizer = torch.optim.Adam(
             params=self.model.parameters(), lr=lr, weight_decay=weight_decay
         )
 
-        features = self.g.nodes[predicted_node_type].data["feat"]
-        labels = self.g.nodes[predicted_node_type].data["label"]
-        test_mask = self.g.nodes[predicted_node_type].data["test_mask"]
-        train_mask = self.g.nodes[predicted_node_type].data["train_mask"]
-        val_mask = self.g.nodes[predicted_node_type].data["val_mask"]
+        features = self.g.nodes[self.category].data["feat"]
+        labels = self.g.nodes[self.category].data["label"]
+        test_mask = self.g.nodes[self.category].data["test_mask"]
+        train_mask = self.g.nodes[self.category].data["train_mask"]
+        val_mask = self.g.nodes[self.category].data["val_mask"]
 
         for epoch in range(num_epochs):
             self.model.train()

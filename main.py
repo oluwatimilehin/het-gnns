@@ -4,9 +4,10 @@ import torch
 
 from data.acm import ACMDataset
 
+from trainers.FastGTNTrainer import FastGTNTrainer
+from trainers.GATV2Trainer import GATV2Trainer
 from trainers.HANTrainer import HANTrainer
 from trainers.HGTTrainer import HGTTrainer
-from trainers.GATV2Trainer import GATV2Trainer
 from trainers.SimpleHGNTrainer import SimpleHGNTrainer
 
 
@@ -35,19 +36,28 @@ def test_acm():
     data = ACMDataset()
     g = data[0]
 
+    num_epochs = 5
     ntype = data.predict_ntype
     input_dim = g.nodes[ntype].data["feat"].shape[1]
 
-    simplehgt_trainer = SimpleHGNTrainer(
-        g, input_dim=input_dim, output_dim=data.num_classes
+    fastgtn_trainer = FastGTNTrainer(
+        g, input_dim=input_dim, output_dim=data.num_classes, category=ntype
     )
-    simplehgt_trainer.run(ntype)
+    fastgtn_trainer.run(num_epochs=num_epochs)
+
+    simplehgt_trainer = SimpleHGNTrainer(
+        g, input_dim=input_dim, output_dim=data.num_classes, category=ntype
+    )
+    simplehgt_trainer.run(num_epochs=num_epochs)
 
     han_trainer = HANTrainer(
-        g, input_dim=input_dim, output_dim=data.num_classes, meta_paths=data.metapaths
+        g,
+        input_dim=input_dim,
+        output_dim=data.num_classes,
+        meta_paths=data.metapaths,
+        category=ntype,
     )
-
-    han_trainer.run(ntype)
+    han_trainer.run(num_epochs=num_epochs)
 
 
 if __name__ == "__main__":
@@ -105,11 +115,15 @@ if __name__ == "__main__":
 
     test_acm()
 
+    category = "user"
     # SimpleHGN
     simple_hgn_trainer = SimpleHGNTrainer(
-        hetero_graph, input_dim=n_hetero_features, output_dim=n_user_classes
+        hetero_graph,
+        input_dim=n_hetero_features,
+        output_dim=n_user_classes,
+        category=category,
     )
-    simple_hgn_trainer.run(predicted_node_type="user")
+    simple_hgn_trainer.run()
 
     # HAN
     han_trainer = HANTrainer(
@@ -117,18 +131,21 @@ if __name__ == "__main__":
         input_dim=n_hetero_features,
         output_dim=n_user_classes,
         meta_paths=[["dislike", "disliked-by"], ["click", "clicked-by"]],
+        category=category,
     )
-    han_trainer.run(predicted_node_type="user")
+    han_trainer.run()
 
     # HGT
     hgt_trainer = HGTTrainer(
         hetero_graph,
         input_dim=n_hetero_features,
         output_dim=n_user_classes,
+        category=category,
     )
-    hgt_trainer.run(predicted_node_type="user")
+    hgt_trainer.run()
 
     # GATV2
+    # TODO: I think I need to zero-pad any node types, instead of ensuring that all the types have the same features
     gat_trainer = GATV2Trainer(
         dgl.to_homogeneous(
             hetero_graph,

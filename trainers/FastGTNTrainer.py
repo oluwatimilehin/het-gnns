@@ -1,24 +1,24 @@
 import torch
 import torch.nn.functional as F
 
-from models.HGT import HGT
+from models.FastGTN import FastGTN
 from utils import Util
 
 
-class HGTTrainer:
+class FastGTNTrainer:
     def __init__(
         self,
         g,
         input_dim,
         output_dim,
         category,
-        hidden_dim=256,
+        num_channels=2,
         gpu=-1,
-        num_heads=4,
+        hidden_dim=128,
         num_layers=2,
-        use_norm=True,
+        norm=True,
+        identity=False,
     ):
-
         if gpu < 0:
             self.cuda = False
         else:
@@ -26,51 +26,42 @@ class HGTTrainer:
             g = g.int().to(gpu)
 
         self.g = g
-
-        node_dict = {}
-        edge_dict = {}
-        for ntype in self.g.ntypes:
-            node_dict[ntype] = len(node_dict)
-        for etype in self.g.etypes:
-            edge_dict[etype] = len(edge_dict)
-            self.g.edges[etype].data["id"] = (
-                torch.ones(self.g.num_edges(etype), dtype=torch.long) * edge_dict[etype]
-            )
-
-        self.model = HGT(
-            g,
-            node_dict=node_dict,
-            edge_dict=edge_dict,
-            n_inp=input_dim,
-            n_hid=hidden_dim,
-            n_out=output_dim,
-            n_layers=num_layers,
-            n_heads=num_heads,
-            use_norm=use_norm,
-        )
-
         self.category = category
+
+        self.model = FastGTN(
+            num_edge_type=len(g.etypes),
+            num_channels=num_channels,
+            in_dim=input_dim,
+            hidden_dim=hidden_dim,
+            num_class=output_dim,
+            num_layers=num_layers,
+            norm=norm,
+            identity=identity,
+            category=category,
+        )
 
         if self.cuda:
             self.model.cuda()
 
-    def run(self, num_epochs=200, max_lr=0.005, clip=1):
-        print(f"Running HGTTrainer")
-        optimizer = torch.optim.AdamW(self.model.parameters())
-        scheduler = torch.optim.lr_scheduler.OneCycleLR(
-            optimizer, total_steps=num_epochs, max_lr=max_lr
+    def run(self, num_epochs=200, lr=0.005, weight_decay=0.001):
+        print(f"Running FastGTNTrainer")
+
+        optimizer = torch.optim.Adam(
+            params=self.model.parameters(), lr=lr, weight_decay=weight_decay
         )
 
+        features = self.g.nodes[self.category].data["feat"]
         labels = self.g.nodes[self.category].data["label"]
         test_mask = self.g.nodes[self.category].data["test_mask"]
         train_mask = self.g.nodes[self.category].data["train_mask"]
         val_mask = self.g.nodes[self.category].data["val_mask"]
 
+        h_dict = {ntype: self.g.nodes[ntype].data["feat"] for ntype in self.g.ntypes}
+
         for epoch in range(num_epochs):
             self.model.train()
 
-            logits = self.model(self.g, self.category)
-
+            logits = self.model(self.g, h_dict)[self.category]
             loss = F.cross_entropy(
                 logits[train_mask],
                 labels[train_mask],
@@ -78,9 +69,7 @@ class HGTTrainer:
 
             optimizer.zero_grad()
             loss.backward()
-            torch.nn.utils.clip_grad_norm_(self.model.parameters(), clip)
             optimizer.step()
-            scheduler.step()
 
             if epoch >= 3:
                 train_acc = Util.accuracy(
@@ -88,9 +77,10 @@ class HGTTrainer:
                     labels[train_mask],
                 )
 
-                val_acc = Util.evaluate(
+                val_acc = Util.evaluate_dict(
                     self.g,
                     self.model,
+                    h_dict,
                     self.category,
                     labels,
                     val_mask,
@@ -101,11 +91,7 @@ class HGTTrainer:
                     f"TrainAcc {train_acc:.4f} | ValAcc {val_acc:.4f}"
                 )
 
-        acc = Util.evaluate(
-            self.g,
-            self.model,
-            self.category,
-            labels,
-            test_mask,
+        acc = Util.evaluate_dict(
+            self.g, self.model, h_dict, self.category, labels, test_mask
         )
         print(f"Test Accuracy {acc:.4f}")
