@@ -1,7 +1,10 @@
+from collections import Counter, defaultdict, namedtuple
+
 import numpy as np
 import dgl
 import torch
 
+from dgl.heterograph import DGLGraph
 from data.acm import ACMDataset
 
 from trainers.FastGTNTrainer import FastGTNTrainer
@@ -31,7 +34,7 @@ def populate_graph_node_data(
     return hetero_graph
 
 
-def to_homogeneous(g, target_node_type):
+def to_homogeneous(g: DGLGraph, target_node_type):
     node_types = g.ntypes
     type_to_id = {ntype: i for i, ntype in enumerate(node_types)}
 
@@ -62,6 +65,9 @@ def to_homogeneous(g, target_node_type):
     return homogeneous_g
 
 
+NodePurity = namedtuple("NodePurity", ["max_frequency", "total_count"])
+
+
 def test_acm():
     # Function to verify the heterogenous models by evaluating them on the ACM dataset
     data = ACMDataset()
@@ -70,6 +76,8 @@ def test_acm():
     num_epochs = 100
     ntype = data.predict_ntype
     input_dim = g.nodes[ntype].data["feat"].shape[1]
+
+    print(f"acm het: {data.score()}")
 
     gat_trainer = GATV2Trainer(
         to_homogeneous(g, ntype),
@@ -159,7 +167,6 @@ if __name__ == "__main__":
     test_acm()
 
     category = "user"
-
 
     gat_trainer = GATV2Trainer(
         to_homogeneous(hetero_graph, category),

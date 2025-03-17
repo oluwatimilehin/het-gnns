@@ -16,13 +16,14 @@ from dgl.data.utils import (
     idx2mask,
 )
 
+from util import Util
+
 
 class ACMDataset(DGLDataset):
     """
     -----
     * Nodes：17351 author, 4025 paper, 72 field
     * Edges: 13407 paper-author, 4025 paper-field
-    * Num classes：3
     * 808 train, 401 valid, 2816 test
 
     """
@@ -66,8 +67,12 @@ class ACMDataset(DGLDataset):
         conf_ids = [0, 1, 9, 10, 13]
         label_ids = [0, 1, 2, 2, 1]
 
-        p_vs_c_filter = p_vs_c[:, conf_ids]
-        p_selected = (p_vs_c_filter.sum(1) != 0).A1.nonzero()[0]
+        p_vs_c_filter = p_vs_c[
+            :, conf_ids
+        ]  # select only the columns (conferences) we care about
+        p_selected = (p_vs_c_filter.sum(1) != 0).A1.nonzero()[
+            0
+        ]  # select only the rows that have at least one reference to a conference in conf_ids
         p_vs_l = p_vs_l[p_selected]
         p_vs_a = p_vs_a[p_selected]
         p_vs_t = p_vs_t[p_selected]
@@ -118,6 +123,11 @@ class ACMDataset(DGLDataset):
     def has_cache(self):
         return os.path.exists(
             os.path.join(self.save_path, self.name + "_dgl_graph.bin")
+        )
+
+    def score(self):
+        return Util.compute_homogeneity(
+            self.g, "paper", [("author", "ap"), ("field", "fp")]
         )
 
     def __getitem__(self, idx):
