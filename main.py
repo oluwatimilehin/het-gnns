@@ -23,12 +23,43 @@ def populate_graph_node_data(
     ).bernoulli(0.6)
     hetero_graph.nodes[node_type].data["val_mask"] = torch.zeros(
         num_nodes, dtype=torch.bool
-    ).bernoulli(0.6)
+    ).bernoulli(0.2)
     hetero_graph.nodes[node_type].data["test_mask"] = torch.zeros(
         num_nodes, dtype=torch.bool
-    ).bernoulli(0.6)
+    ).bernoulli(0.2)
 
     return hetero_graph
+
+
+def to_homogeneous(g, target_node_type):
+    node_types = g.ntypes
+    type_to_id = {ntype: i for i, ntype in enumerate(node_types)}
+
+    homogeneous_g = dgl.to_homogeneous(g)
+
+    node_type_ids = homogeneous_g.ndata[dgl.NTYPE]
+    target_type_id = type_to_id[target_node_type]
+    target_mask = node_type_ids == target_type_id
+
+    target_indices = torch.where(target_mask)[0]
+
+    for attr in ["feat", "train_mask", "val_mask", "test_mask", "label"]:
+        if attr in g.nodes[target_node_type].data:
+            target_attr = g.nodes[target_node_type].data[attr]
+            shape = (
+                (homogeneous_g.num_nodes(),)
+                if target_attr.dim() == 1
+                else (homogeneous_g.num_nodes(), target_attr.shape[1])
+            )
+            all_attr = torch.zeros(
+                shape, dtype=target_attr.dtype, device=target_attr.device
+            )
+            all_attr[target_indices] = target_attr
+            homogeneous_g.ndata[attr] = all_attr
+
+    homogeneous_g.ndata["node_type"] = node_type_ids
+
+    return homogeneous_g
 
 
 def test_acm():
@@ -39,6 +70,13 @@ def test_acm():
     num_epochs = 100
     ntype = data.predict_ntype
     input_dim = g.nodes[ntype].data["feat"].shape[1]
+
+    gat_trainer = GATV2Trainer(
+        to_homogeneous(g, ntype),
+        input_dim=input_dim,
+        output_dim=data.num_classes,
+    )
+    gat_trainer.run()
 
     hgt_trainer = HGTTrainer(
         g, input_dim=input_dim, output_dim=data.num_classes, category=ntype
@@ -122,6 +160,14 @@ if __name__ == "__main__":
 
     category = "user"
 
+
+    gat_trainer = GATV2Trainer(
+        to_homogeneous(hetero_graph, category),
+        input_dim=n_hetero_features,
+        output_dim=n_user_classes,
+    )
+    gat_trainer.run()
+
     # HGT
     hgt_trainer = HGTTrainer(
         hetero_graph,
@@ -149,15 +195,3 @@ if __name__ == "__main__":
         category=category,
     )
     han_trainer.run()
-
-    # GATV2
-    # TODO: I think I need to zero-pad any node types, instead of ensuring that all the types have the same features
-    gat_trainer = GATV2Trainer(
-        dgl.to_homogeneous(
-            hetero_graph,
-            ndata=["feat", "label", "test_mask", "train_mask", "val_mask"],
-        ),
-        input_dim=n_hetero_features,
-        output_dim=n_user_classes,
-    )
-    gat_trainer.run()
