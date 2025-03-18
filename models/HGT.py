@@ -28,7 +28,7 @@ class HGT(nn.Module):
         etypes,
         category,
         num_layers,
-        dropout=0.2,
+        dropout=0.4,
         use_norm=True,
     ):
         """HGT
