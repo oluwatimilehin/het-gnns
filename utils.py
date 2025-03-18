@@ -91,7 +91,7 @@ class Util:
         target_node_type,
         num_classes,
         num_features=5,
-        homogeneity=1,
+        correlation=1,
         train_ratio=0.6,
         val_ratio=0.2,
         test_ratio=0.2,
@@ -140,7 +140,7 @@ class Util:
 
         node_indices = torch.randperm(num_target_nodes)
 
-        num_dominant = int(homogeneity * num_target_nodes)
+        num_dominant = int(correlation * num_target_nodes)
         initial_labels[node_indices[:num_dominant]] = 0
 
         remaining_indices = node_indices[num_dominant:]
@@ -174,7 +174,7 @@ class Util:
         return hg
 
     @classmethod
-    def compute_homogeneity(cls, g: DGLGraph, target_node_type: str) -> float:
+    def compute_correlation(cls, g: DGLGraph, target_node_type: str) -> float:
         all_labels = g.nodes[target_node_type].data["label"]
 
         total_max_freq = 0

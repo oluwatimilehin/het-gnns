@@ -84,11 +84,11 @@ if __name__ == "__main__":
     }
 
     hg = Util.generate_graph(
-        num_nodes_dict, num_edges_dict, "paper", n_user_classes, homogeneity=0.2
+        num_nodes_dict, num_edges_dict, "paper", n_user_classes, correlation=0.2
     )
-    print(f'homogeneity: {Util.compute_homogeneity(hg, "paper")}')
+    print(f'homogeneity: {Util.compute_correlation(hg, "paper")}')
 
-    n_user_classes = 5
+    n_user_classes = 3
     n_hetero_features = 5
     num_edges_dict = {
         ("user", "follow", "user"): 3000,
@@ -104,11 +104,11 @@ if __name__ == "__main__":
         category,
         n_user_classes,
         num_features=n_hetero_features,
-        homogeneity=0.8,
+        correlation=0.5,
     )
-    print(f"homogeneity: {Util.compute_homogeneity(hetero_graph, category)}")
+    print(f"homogeneity: {Util.compute_correlation(hetero_graph, category)}")
 
-    # test_acm()
+    test_acm()
 
     num_epochs = 200
 

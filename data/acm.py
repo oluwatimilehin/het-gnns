@@ -126,7 +126,7 @@ class ACMDataset(DGLDataset):
         )
 
     def score(self):
-        return Util.compute_homogeneity(self.g, "paper")
+        return Util.compute_correlation(self.g, "paper")
 
     def __getitem__(self, idx):
         if idx != 0:
