@@ -1,0 +1,34 @@
+
+node value
+homogeneous
+heterogeneous
+metapaths (long term homogeneous)
+
+We can do graph values and/or graph structure
+
+One thing we can do with graph structure is just count neighbors, and do something with that
+
+I feel like everything I think here is like defining regression to the mean and shit
+How the hell can graph neural networks even work it seems like a terrible idea that, well, fundamentally oversquashes
+
+
+Maybe we can do r-regular for small r
+Then we regress less.
+For features we can do something like one hot encoding or something and have a matrix from there to R^5, not entirely sure tbh
+
+
+Here is a dumbass idea:
+have r-regular heterogeneous graph
+just emulate an approximate distribution of the mean of the node values that are neighbors
+Where each node is split into like self values and transmit values
+
+to me there seem to be lots of essentially probabilistic ways where like maybe you pay attention to neighbors some of the time
+But then that's sus I mean maybe its one possibility.
+
+
+An alternate idea is to have it be deterministic but make the importance like an apriori probability rather than a factor directly
+Where we try to optimize the constants
+Basically each node mapped to some probability distribution
+And we tune importance to do something like follow average of neighbors half the time or something.
+
+
