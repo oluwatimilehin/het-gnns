@@ -76,7 +76,7 @@ class FastGTNTrainer:
                     labels[train_mask],
                 )
 
-                val_acc = Util.evaluate_dict(
+                val_res = Util.evaluate_dict(
                     self.g,
                     self.model,
                     h_dict,
@@ -87,10 +87,11 @@ class FastGTNTrainer:
 
                 print(
                     f"Epoch {epoch:05d}  | Loss {loss.item():.4f} | "
-                    f"TrainAcc {train_acc:.4f} | ValAcc {val_acc:.4f}"
+                    f"TrainAcc {train_acc:.4f} | ValRes: {val_res}"
                 )
 
-        acc = Util.evaluate_dict(
+        res = Util.evaluate_dict(
             self.g, self.model, h_dict, self.category, labels, test_mask
         )
-        print(f"Test Accuracy {acc:.4f}")
+        print(f"Test results: {res}")
+        return res

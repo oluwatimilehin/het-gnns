@@ -89,18 +89,18 @@ class GATV2Trainer:
                 train_acc = Util.accuracy(logits[train_mask], labels[train_mask])
 
                 if fast_mode:
-                    val_acc = Util.accuracy(logits[val_mask], labels[val_mask])
+                    val_res = Util.accuracy(logits[val_mask], labels[val_mask])
                 else:
-                    val_acc = Util.evaluate(
+                    val_res = Util.evaluate(
                         self.g, self.model, features, labels, val_mask
                     )
                     if early_stop:
-                        if stopper.step(val_acc, self.model):
+                        if stopper.step(val_res, self.model):
                             break
 
                 print(
                     f"Epoch {epoch:05d} | Loss {loss.item():.4f} | "
-                    f"TrainAcc {train_acc:.4f} | ValAcc {val_acc:.4f} "
+                    f"TrainAcc {train_acc:.4f} | ValRes: {val_res} "
                 )
 
         if early_stop:
@@ -108,5 +108,7 @@ class GATV2Trainer:
                 torch.load("es_checkpoint.pt", weights_only=False)
             )
 
-        acc = Util.evaluate(self.g, self.model, features, labels, test_mask)
-        print(f"Test Accuracy {acc:.4f}")
+        res = Util.evaluate(self.g, self.model, features, labels, test_mask)
+        print(f"Test results: {res}")
+
+        return res

@@ -16,7 +16,7 @@ from dgl.data.utils import (
     idx2mask,
 )
 
-from util import Util
+from utils import Util
 
 
 class ACMDataset(DGLDataset):

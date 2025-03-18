@@ -76,7 +76,7 @@ class HANTrainer:
                     labels[train_mask],
                 )
 
-                val_acc = Util.evaluate(
+                val_res = Util.evaluate(
                     self.gs,
                     self.model,
                     features,
@@ -86,8 +86,10 @@ class HANTrainer:
 
                 print(
                     f"Epoch {epoch:05d}  | Loss {loss.item():.4f} | "
-                    f"TrainAcc {train_acc:.4f} | ValAcc {val_acc:.4f}"
+                    f"TrainAcc {train_acc:.4f} | ValRes: {val_res}"
                 )
 
-        acc = Util.evaluate(self.gs, self.model, features, labels, test_mask)
-        print(f"Test Accuracy {acc:.4f}")
+        res = Util.evaluate(self.gs, self.model, features, labels, test_mask)
+        print(f"Test results: {res}")
+
+        return res

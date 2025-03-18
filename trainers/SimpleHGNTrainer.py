@@ -15,7 +15,7 @@ class SimpleHGNTrainer:
         edge_dim=64,
         gpu=-1,
         hidden_dim=256,
-        num_layers=1,
+        num_layers=3,
         num_heads=8,
         feat_dropout=0.5,
         negative_slope=0.05,
@@ -81,7 +81,7 @@ class SimpleHGNTrainer:
                     labels[train_mask],
                 )
 
-                val_acc = Util.evaluate_dict(
+                val_res = Util.evaluate_dict(
                     self.g,
                     self.model,
                     h_dict,
@@ -92,10 +92,11 @@ class SimpleHGNTrainer:
 
                 print(
                     f"Epoch {epoch:05d}  | Loss {loss.item():.4f} | "
-                    f"TrainAcc {train_acc:.4f} | ValAcc {val_acc:.4f}"
+                    f"TrainAcc {train_acc:.4f} | ValRes: {val_res}"
                 )
 
-        acc = Util.evaluate_dict(
+        res = Util.evaluate_dict(
             self.g, self.model, h_dict, self.category, labels, test_mask
         )
-        print(f"Test Accuracy {acc:.4f}")
+        print(f"Test results: {res}")
+        return res

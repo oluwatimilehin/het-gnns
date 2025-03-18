@@ -14,7 +14,7 @@ class HGTTrainer:
         category,
         hidden_dim=256,
         gpu=-1,
-        num_heads=4,
+        num_heads=8,
         num_layers=2,
         use_norm=True,
     ):
@@ -79,7 +79,7 @@ class HGTTrainer:
                     labels[train_mask],
                 )
 
-                val_acc = Util.evaluate(
+                val_res = Util.evaluate(
                     self.g,
                     self.model,
                     features,
@@ -89,14 +89,15 @@ class HGTTrainer:
 
                 print(
                     f"Epoch {epoch:05d}  | Loss {loss.item():.4f} | "
-                    f"TrainAcc {train_acc:.4f} | ValAcc {val_acc:.4f}"
+                    f"TrainAcc {train_acc:.4f} | ValRes: {val_res}"
                 )
 
-        acc = Util.evaluate(
+        res = Util.evaluate(
             self.g,
             self.model,
             features,
             labels,
             test_mask,
         )
-        print(f"Test Accuracy {acc:.4f}")
+        print(f"Test Results: {res}")
+        return res

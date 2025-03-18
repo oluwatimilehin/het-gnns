@@ -8,7 +8,7 @@ from trainers.HANTrainer import HANTrainer
 from trainers.HGTTrainer import HGTTrainer
 from trainers.SimpleHGNTrainer import SimpleHGNTrainer
 
-from util import Util
+from utils import Util
 
 
 def populate_graph_node_data(
@@ -42,17 +42,17 @@ def test_acm():
 
     print(f"acm het: {data.score()}")
 
-    # gat_trainer = GATV2Trainer(
-    #     Util.to_homogeneous(g, ntype),
-    #     input_dim=input_dim,
-    #     output_dim=data.num_classes,
-    # )
-    # gat_trainer.run()
+    gat_trainer = GATV2Trainer(
+        Util.to_homogeneous(g, ntype),
+        input_dim=input_dim,
+        output_dim=data.num_classes,
+    )
+    gat_trainer.run(num_epochs=num_epochs)
 
-    # hgt_trainer = HGTTrainer(
-    #     g, input_dim=input_dim, output_dim=data.num_classes, category=ntype
-    # )
-    # hgt_trainer.run(num_epochs=num_epochs)
+    hgt_trainer = HGTTrainer(
+        g, input_dim=input_dim, output_dim=data.num_classes, category=ntype
+    )
+    hgt_trainer.run(num_epochs=num_epochs)
 
     fastgtn_trainer = FastGTNTrainer(
         g, input_dim=input_dim, output_dim=data.num_classes, category=ntype
@@ -104,13 +104,13 @@ if __name__ == "__main__":
         category,
         n_user_classes,
         num_features=n_hetero_features,
-        homogeneity=0.6,
+        homogeneity=0.8,
     )
     print(f"homogeneity: {Util.compute_homogeneity(hetero_graph, category)}")
 
     # test_acm()
 
-    num_epochs = 100
+    num_epochs = 200
 
     fastgtn_trainer = FastGTNTrainer(
         hetero_graph,
@@ -129,7 +129,7 @@ if __name__ == "__main__":
     )
     simple_hgn_trainer.run(num_epochs)
 
-    # # HAN
+    # HAN
     han_trainer = HANTrainer(
         hetero_graph,
         input_dim=n_hetero_features,
