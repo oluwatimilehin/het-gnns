@@ -125,7 +125,7 @@ class ACMDataset(DGLDataset):
             os.path.join(self.save_path, self.name + "_dgl_graph.bin")
         )
 
-    def score(self):
+    def correlation_score(self):
         return Util.compute_correlation(self.g, "paper")
 
     def __getitem__(self, idx):

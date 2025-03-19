@@ -1,8 +1,6 @@
 from collections import Counter, namedtuple
 import random
 
-
-import numpy as np
 import torch
 
 import dgl
@@ -10,6 +8,8 @@ from dgl import transforms as T
 from dgl.heterograph import DGLGraph
 
 from sklearn.metrics import f1_score
+from sklearn.model_selection import train_test_split
+
 
 
 class EarlyStopping:
@@ -200,7 +200,7 @@ class Util:
                 src_max_freq += max_freq
                 src_total_count += len(target_nodes)
 
-            print(f"{src_type} homogeneity: {src_max_freq / src_total_count}")
+            print(f"{src_type} correlation: {src_max_freq / src_total_count}")
             total_max_freq += src_max_freq
             total_count += src_total_count
 
@@ -236,3 +236,26 @@ class Util:
         homogeneous_g.ndata["node_type"] = node_type_ids
 
         return homogeneous_g
+
+    @classmethod    
+    def split_idx(cls, samples, train_size, val_size, random_state=None):
+        """Split samples into training, validation, and test sets, satisfying the following conditions (expressed as floating-point numbers):
+
+        * 0 < train_size < 1
+        * 0 < val_size < 1
+        * train_size + val_size < 1
+
+        :param samples: list/ndarray/tensor of samples
+        :param train_size: int or float If it is an integer, it represents the absolute number of training samples; otherwise, it represents the proportion of training samples in the entire dataset
+        :param val_size: int or float If it is an integer, it represents the absolute number of validation samples; otherwise, it represents the proportion of validation samples in the entire dataset
+        :param random_state: int, optional Random seed
+        :return: (train, val, test) with the same type as samples
+        """
+        train, val = train_test_split(
+            samples, train_size=train_size, random_state=random_state
+        )
+        if isinstance(val_size, float):
+            val_size *= len(samples) / len(val)
+        val, test = train_test_split(val, train_size=val_size, random_state=random_state)
+        return train, val, test
+
