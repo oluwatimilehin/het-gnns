@@ -327,7 +327,7 @@ def test_simple_gen():
     }
 
 
-def test_correlator():
+def test_correlation():
     num_user_classes = 3
     num_features = 5
     num_edges_dict = {
@@ -344,15 +344,14 @@ def test_correlator():
         num_nodes_dict,
         num_edges_dict,
         category,
-        num_user_classes,
         num_features=num_features,
-        correlation=0.5,
     )
 
-    correlation = 0.5
+    correlation = 0.8
     labelled_hg = CorrelationGen.label(hg, category, num_user_classes, correlation)
 
     print(f"Correlation score: {Util.compute_correlation(labelled_hg, category)}")
+    return
     results = run(labelled_hg, num_features, num_user_classes, category, meta_paths)
 
     print(f"results: {results}")
@@ -375,13 +374,13 @@ def test_standard_datasets():
         print(f"Running {data.name} with correlation score: {data.correlation_score()}")
         num_features = hg.nodes[category].data["feat"].shape[1]
         results = run(
-            hg, num_features, data.num_classes, category, data.metapaths, num_epochs=3
+            hg, num_features, data.num_classes, category, data.metapaths, num_epochs=50
         )
 
         print(f"Results: {results}")
 
 
 if __name__ == "__main__":
-
-    test_standard_datasets()
+    test_correlation()
+    # test_standard_datasets()
     # test_simple_gen()
