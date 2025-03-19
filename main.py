@@ -1,6 +1,13 @@
 import torch
 
 from data.acm import ACMDataset
+from data.imdb import IMDbDataset
+from data.dataset import (
+    ACMHeCoDataset,
+    DBLPHeCoDataset,
+    AMinerHeCoDataset,
+    FreebaseHeCoDataset,
+)
 
 from trainers.FastGTNTrainer import FastGTNTrainer
 from trainers.GATV2Trainer import GATV2Trainer
@@ -40,7 +47,7 @@ def test_acm():
     ntype = data.predict_ntype
     input_dim = g.nodes[ntype].data["feat"].shape[1]
 
-    print(f"acm het: {data.score()}")
+    print(f"acm het: {data.correlation_score()}")
 
     gat_trainer = GATV2Trainer(
         Util.to_homogeneous(g, ntype),
@@ -75,6 +82,13 @@ def test_acm():
 
 
 if __name__ == "__main__":
+    print(f"DBLPHeco Correlation: {DBLPHeCoDataset().correlation_score()}")
+    print(f"ACMHeco Correlation : {ACMHeCoDataset().correlation_score()}")
+    print(f"FreebaseHeco Correlation : {FreebaseHeCoDataset().correlation_score()}")
+    print(f"AMiner Correlation: {AMinerHeCoDataset().correlation_score()}")
+    print(f"IMDb Correlation: {IMDbDataset().correlation_score()}")
+
+    # raise ValueError("Stop")
 
     n_user_classes = 5
     num_edges_dict = {("author", "author-paper", "paper"): 10000}
@@ -86,7 +100,7 @@ if __name__ == "__main__":
     hg = Util.generate_graph(
         num_nodes_dict, num_edges_dict, "paper", n_user_classes, correlation=0.2
     )
-    print(f'homogeneity: {Util.compute_correlation(hg, "paper")}')
+    print(f'correlation: {Util.compute_correlation(hg, "paper")}')
 
     n_user_classes = 3
     n_hetero_features = 5
