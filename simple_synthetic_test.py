@@ -72,7 +72,7 @@ if __name__ == "__main__":
 
     # Fixed node importance, varying edge importance test
     fixed_node_importance_res = {}
-    for i in range(0, 12, 2):
+    for i in range(0, 22, 4):
         importance = i / 10.0
         print(f"Running for homogeneous edge importance factor: {importance}")
         labelled_graph = SimpleGen.label(
@@ -122,94 +122,102 @@ if __name__ == "__main__":
     fixed_node_importance_res = {
         0.0: {
             "FastGTN": Metric(
-                micro_f1=0.6888888888888889, macro_f1=0.3679, accuracy=0.68889
-            ),
-            "GAT": Metric(micro_f1=0.45, macro_f1=0.2905, accuracy=0.45),
-            "HAN": Metric(
-                micro_f1=0.6277777777777778, macro_f1=0.1543, accuracy=0.62778
-            ),
-            "HGT": Metric(
-                micro_f1=0.8277777777777777, macro_f1=0.6722, accuracy=0.82778
-            ),
-            "SimpleHGN": Metric(micro_f1=0.75, macro_f1=0.4953, accuracy=0.75),
-        },
-        0.2: {
-            "FastGTN": Metric(
-                micro_f1=0.6777777777777778, macro_f1=0.258, accuracy=0.67778
+                micro_f1=0.6086956521739131, macro_f1=0.2147, accuracy=0.6087
             ),
             "GAT": Metric(
-                micro_f1=0.5277777777777778, macro_f1=0.2978, accuracy=0.52778
+                micro_f1=0.5265700483091788, macro_f1=0.3479, accuracy=0.52657
             ),
-            "HAN": Metric(
-                micro_f1=0.6944444444444444, macro_f1=0.1639, accuracy=0.69444
-            ),
+            "HAN": Metric(micro_f1=0.6570048309178744, macro_f1=0.1586, accuracy=0.657),
             "HGT": Metric(
-                micro_f1=0.8222222222222222, macro_f1=0.612, accuracy=0.82222
+                micro_f1=0.7874396135265701, macro_f1=0.5251, accuracy=0.78744
             ),
             "SimpleHGN": Metric(
-                micro_f1=0.7555555555555555, macro_f1=0.455, accuracy=0.75556
+                micro_f1=0.7101449275362319, macro_f1=0.3731, accuracy=0.71014
             ),
         },
         0.4: {
             "FastGTN": Metric(
-                micro_f1=0.6888888888888889, macro_f1=0.2893, accuracy=0.68889
-            ),
-            "GAT": Metric(micro_f1=0.55, macro_f1=0.3504, accuracy=0.55),
-            "HAN": Metric(micro_f1=0.6666666666666666, macro_f1=0.16, accuracy=0.66667),
-            "HGT": Metric(
-                micro_f1=0.8611111111111112, macro_f1=0.673, accuracy=0.86111
-            ),
-            "SimpleHGN": Metric(
-                micro_f1=0.8111111111111111, macro_f1=0.5151, accuracy=0.81111
-            ),
-        },
-        0.6: {
-            "FastGTN": Metric(
-                micro_f1=0.7111111111111111, macro_f1=0.3363, accuracy=0.71111
+                micro_f1=0.6570048309178744, macro_f1=0.3731, accuracy=0.657
             ),
             "GAT": Metric(
-                micro_f1=0.4722222222222222, macro_f1=0.2937, accuracy=0.47222
+                micro_f1=0.5652173913043478, macro_f1=0.3867, accuracy=0.56522
             ),
             "HAN": Metric(
-                micro_f1=0.6833333333333333, macro_f1=0.1624, accuracy=0.68333
+                micro_f1=0.5893719806763285, macro_f1=0.1483, accuracy=0.58937
             ),
             "HGT": Metric(
-                micro_f1=0.8388888888888889, macro_f1=0.6799, accuracy=0.83889
+                micro_f1=0.8115942028985508, macro_f1=0.665, accuracy=0.81159
             ),
             "SimpleHGN": Metric(
-                micro_f1=0.7722222222222223, macro_f1=0.5511, accuracy=0.77222
+                micro_f1=0.7004830917874396, macro_f1=0.4777, accuracy=0.70048
             ),
         },
         0.8: {
             "FastGTN": Metric(
-                micro_f1=0.6888888888888889, macro_f1=0.2418, accuracy=0.68889
-            ),
-            "GAT": Metric(micro_f1=0.55, macro_f1=0.319, accuracy=0.55),
-            "HAN": Metric(
-                micro_f1=0.7166666666666667, macro_f1=0.167, accuracy=0.71667
-            ),
-            "HGT": Metric(
-                micro_f1=0.8111111111111111, macro_f1=0.5852, accuracy=0.81111
-            ),
-            "SimpleHGN": Metric(
-                micro_f1=0.7666666666666667, macro_f1=0.4425, accuracy=0.76667
-            ),
-        },
-        1.0: {
-            "FastGTN": Metric(
-                micro_f1=0.7166666666666667, macro_f1=0.3933, accuracy=0.71667
+                micro_f1=0.6183574879227053, macro_f1=0.2779, accuracy=0.61836
             ),
             "GAT": Metric(
-                micro_f1=0.5555555555555556, macro_f1=0.3097, accuracy=0.55556
+                micro_f1=0.5362318840579711, macro_f1=0.3153, accuracy=0.53623
             ),
             "HAN": Metric(
-                micro_f1=0.6555555555555556, macro_f1=0.1584, accuracy=0.65556
+                micro_f1=0.6328502415458938, macro_f1=0.155, accuracy=0.63285
             ),
             "HGT": Metric(
-                micro_f1=0.8166666666666667, macro_f1=0.5995, accuracy=0.81667
+                micro_f1=0.821256038647343, macro_f1=0.6085, accuracy=0.82126
             ),
             "SimpleHGN": Metric(
-                micro_f1=0.7666666666666667, macro_f1=0.5053, accuracy=0.76667
+                micro_f1=0.7536231884057971, macro_f1=0.4771, accuracy=0.75362
+            ),
+        },
+        1.2: {
+            "FastGTN": Metric(
+                micro_f1=0.6280193236714976, macro_f1=0.308, accuracy=0.62802
+            ),
+            "GAT": Metric(
+                micro_f1=0.4782608695652174, macro_f1=0.3308, accuracy=0.47826
+            ),
+            "HAN": Metric(
+                micro_f1=0.6376811594202898, macro_f1=0.1558, accuracy=0.63768
+            ),
+            "HGT": Metric(
+                micro_f1=0.7777777777777778, macro_f1=0.6219, accuracy=0.77778
+            ),
+            "SimpleHGN": Metric(
+                micro_f1=0.7053140096618358, macro_f1=0.4609, accuracy=0.70531
+            ),
+        },
+        1.6: {
+            "FastGTN": Metric(
+                micro_f1=0.5942028985507246, macro_f1=0.2623, accuracy=0.5942
+            ),
+            "GAT": Metric(
+                micro_f1=0.48792270531400966, macro_f1=0.3119, accuracy=0.48792
+            ),
+            "HAN": Metric(
+                micro_f1=0.5797101449275363, macro_f1=0.1468, accuracy=0.57971
+            ),
+            "HGT": Metric(
+                micro_f1=0.7391304347826086, macro_f1=0.557, accuracy=0.73913
+            ),
+            "SimpleHGN": Metric(
+                micro_f1=0.7342995169082126, macro_f1=0.5748, accuracy=0.7343
+            ),
+        },
+        2.0: {
+            "FastGTN": Metric(
+                micro_f1=0.6328502415458938, macro_f1=0.3302, accuracy=0.63285
+            ),
+            "GAT": Metric(
+                micro_f1=0.5314009661835749, macro_f1=0.3356, accuracy=0.5314
+            ),
+            "HAN": Metric(
+                micro_f1=0.5797101449275363, macro_f1=0.1468, accuracy=0.57971
+            ),
+            "HGT": Metric(
+                micro_f1=0.8405797101449275, macro_f1=0.6986, accuracy=0.84058
+            ),
+            "SimpleHGN": Metric(
+                micro_f1=0.7536231884057971, macro_f1=0.5547, accuracy=0.75362
             ),
         },
     }
