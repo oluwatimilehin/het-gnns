@@ -11,7 +11,6 @@ from sklearn.metrics import f1_score
 from sklearn.model_selection import train_test_split
 
 
-
 class EarlyStopping:
     def __init__(self, patience=10):
         self.patience = patience
@@ -59,7 +58,7 @@ class Util:
         return (micro_f1, macro_f1)
 
     @classmethod
-    def evaluate(cls, g, model, features, labels, mask):
+    def evaluate(cls, g, model, features, labels, mask) -> Metric:
         model.eval()
         with torch.no_grad():
             logits = model(g, features)
@@ -70,7 +69,7 @@ class Util:
             return Metric(f1_score[0], f1_score[1], cls.accuracy(logits, labels))
 
     @classmethod
-    def evaluate_dict(cls, g, model, features_dict, category, labels, mask):
+    def evaluate_dict(cls, g, model, features_dict, category, labels, mask) -> Metric:
         model.eval()
         with torch.no_grad():
             logits = model(g, features_dict)[category]
@@ -237,7 +236,7 @@ class Util:
 
         return homogeneous_g
 
-    @classmethod    
+    @classmethod
     def split_idx(cls, samples, train_size, val_size, random_state=None):
         """Split samples into training, validation, and test sets, satisfying the following conditions (expressed as floating-point numbers):
 
@@ -256,6 +255,7 @@ class Util:
         )
         if isinstance(val_size, float):
             val_size *= len(samples) / len(val)
-        val, test = train_test_split(val, train_size=val_size, random_state=random_state)
+        val, test = train_test_split(
+            val, train_size=val_size, random_state=random_state
+        )
         return train, val, test
-
