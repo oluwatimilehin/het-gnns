@@ -1,13 +1,23 @@
+from utils import Util, Metric
+from typing import Dict, List
+from dgl.data import DGLDataset
+
 from graph_gen.simple_gen import SimpleGen
+from graph_gen.correlation_gen import CorrelationGen
+
+from data.acm import ACMDataset
+from data.imdb import IMDbDataset
+from data.dataset import (
+    DBLPHeCoDataset,
+    AMinerHeCoDataset,
+    FreebaseHeCoDataset,
+)
 
 from trainers.FastGTNTrainer import FastGTNTrainer
 from trainers.GATV2Trainer import GATV2Trainer
 from trainers.HANTrainer import HANTrainer
 from trainers.HGTTrainer import HGTTrainer
 from trainers.SimpleHGNTrainer import SimpleHGNTrainer
-
-from utils import Util, Metric
-from typing import Dict
 
 
 def run(
@@ -53,7 +63,7 @@ def run(
     return results
 
 
-if __name__ == "__main__":
+def test_simple_gen():
     num_features = 20
     hg = SimpleGen.generate(
         n_node_types=3,
@@ -315,3 +325,63 @@ if __name__ == "__main__":
             ),
         },
     }
+
+
+def test_correlator():
+    num_user_classes = 3
+    num_features = 5
+    num_edges_dict = {
+        ("user", "follow", "user"): 3000,
+        ("user", "click", "item"): 5000,
+        ("user", "dislike", "item"): 500,
+    }
+    num_nodes_dict = {"user": 1000, "item": 500}
+
+    category = "user"
+    meta_paths = [["dislike", "rev_dislike"], ["click", "rev_click"]]
+
+    hg = CorrelationGen.generate(
+        num_nodes_dict,
+        num_edges_dict,
+        category,
+        num_user_classes,
+        num_features=num_features,
+        correlation=0.5,
+    )
+
+    correlation = 0.5
+    labelled_hg = CorrelationGen.label(hg, category, num_user_classes, correlation)
+
+    print(f"Correlation score: {Util.compute_correlation(labelled_hg, category)}")
+    results = run(labelled_hg, num_features, num_user_classes, category, meta_paths)
+
+    print(f"results: {results}")
+
+
+def test_standard_datasets():
+    datasets: List[DGLDataset] = [
+        DBLPHeCoDataset,
+        ACMDataset,
+        FreebaseHeCoDataset,
+        AMinerHeCoDataset,
+        IMDbDataset,
+    ]
+
+    for dataset in datasets:
+        data: DGLDataset = dataset()
+        hg = data[0]
+        category = data.predict_ntype
+
+        print(f"Running {data.name} with correlation score: {data.correlation_score()}")
+        num_features = hg.nodes[category].data["feat"].shape[1]
+        results = run(
+            hg, num_features, data.num_classes, category, data.metapaths, num_epochs=3
+        )
+
+        print(f"Results: {results}")
+
+
+if __name__ == "__main__":
+
+    test_standard_datasets()
+    # test_simple_gen()

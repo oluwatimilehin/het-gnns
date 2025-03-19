@@ -7,6 +7,8 @@ import numpy as np
 import pandas as pd
 import scipy.sparse as sp
 import torch
+
+from dgl import DGLHeteroGraph
 from dgl.data import DGLDataset
 from dgl.data.utils import (
     download,
@@ -87,11 +89,33 @@ class HeCoDataset(DGLDataset):
         self.pos_i, self.pos_j = info["pos_i"], info["pos_j"]
 
     def process(self):
-        self.g = dgl.heterograph(self._read_edges())
+        self.g: DGLHeteroGraph = dgl.heterograph(self._read_edges())
 
         feats = self._read_feats()
-        for ntype, feat in feats.items():
-            self.g.nodes[ntype].data["feat"] = feat
+
+        for ntype in self.g.ntypes:
+            self.g.nodes[ntype].data["feat"] = torch.eye(self.g.num_nodes(ntype))
+            if ntype in feats:
+                self.g.nodes[ntype].data["feat"] = feats[ntype]
+
+        max_feat_size = max(
+            self.g.nodes[ntype].data["feat"].shape[1] for ntype in self.g.ntypes
+        )
+        # Pad node features to the same size
+        for ntype in self.g.ntypes:
+            ntype_feat_size = self.g.nodes[ntype].data["feat"].shape[1]
+            if ntype_feat_size < max_feat_size:
+                pad_size = max_feat_size - ntype_feat_size
+                self.g.nodes[ntype].data["feat"] = torch.cat(
+                    [
+                        self.g.nodes[ntype].data["feat"],
+                        torch.zeros(
+                            self.g.nodes[ntype].data["feat"].shape[0],
+                            pad_size,
+                        ),
+                    ],
+                    dim=1,
+                )
 
         labels = torch.from_numpy(
             np.load(os.path.join(self.raw_path, "labels.npy"))
@@ -137,6 +161,7 @@ class HeCoDataset(DGLDataset):
         return feats
 
     def has_cache(self):
+        return False
         return os.path.exists(
             os.path.join(self.save_path, self.name + "_dgl_graph.bin")
         )
