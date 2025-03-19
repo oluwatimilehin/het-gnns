@@ -4,10 +4,9 @@ from dgl import DGLGraph
 
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 
 from random import randrange, choice
-from typing import List, Dict, Tuple
+from typing import List, Dict
 
 
 class SimpleGen:

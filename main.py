@@ -18,26 +18,6 @@ from trainers.SimpleHGNTrainer import SimpleHGNTrainer
 from utils import Util
 
 
-def populate_graph_node_data(
-    hetero_graph, node_type, num_nodes, num_classes, num_features
-):
-    hetero_graph.nodes[node_type].data["feat"] = torch.randn(num_nodes, num_features)
-    hetero_graph.nodes[node_type].data["label"] = torch.randint(
-        0, num_classes, (num_nodes,)
-    )
-    hetero_graph.nodes[node_type].data["train_mask"] = torch.zeros(
-        num_nodes, dtype=torch.bool
-    ).bernoulli(0.6)
-    hetero_graph.nodes[node_type].data["val_mask"] = torch.zeros(
-        num_nodes, dtype=torch.bool
-    ).bernoulli(0.2)
-    hetero_graph.nodes[node_type].data["test_mask"] = torch.zeros(
-        num_nodes, dtype=torch.bool
-    ).bernoulli(0.2)
-
-    return hetero_graph
-
-
 def test_acm():
     # Function to verify the heterogenous models by evaluating them on the ACM dataset
     data = ACMDataset()
@@ -123,48 +103,3 @@ if __name__ == "__main__":
     print(f"homogeneity: {Util.compute_correlation(hetero_graph, category)}")
 
     test_acm()
-
-    num_epochs = 200
-
-    fastgtn_trainer = FastGTNTrainer(
-        hetero_graph,
-        input_dim=n_hetero_features,
-        output_dim=n_user_classes,
-        category=category,
-    )
-    fastgtn_trainer.run(num_epochs)
-
-    # SimpleHGN
-    simple_hgn_trainer = SimpleHGNTrainer(
-        hetero_graph,
-        input_dim=n_hetero_features,
-        output_dim=n_user_classes,
-        category=category,
-    )
-    simple_hgn_trainer.run(num_epochs)
-
-    # HAN
-    han_trainer = HANTrainer(
-        hetero_graph,
-        input_dim=n_hetero_features,
-        output_dim=n_user_classes,
-        meta_paths=[["dislike", "rev_dislike"], ["click", "rev_click"]],
-        category=category,
-    )
-    han_trainer.run(num_epochs)
-
-    gat_trainer = GATV2Trainer(
-        Util.to_homogeneous(hetero_graph, category),
-        input_dim=n_hetero_features,
-        output_dim=n_user_classes,
-    )
-    gat_trainer.run(num_epochs)
-
-    # HGT
-    hgt_trainer = HGTTrainer(
-        hetero_graph,
-        input_dim=n_hetero_features,
-        output_dim=n_user_classes,
-        category=category,
-    )
-    hgt_trainer.run(num_epochs)
