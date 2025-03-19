@@ -1,10 +1,8 @@
 from collections import Counter, namedtuple
-import random
 
 import torch
 
 import dgl
-from dgl import transforms as T
 from dgl.heterograph import DGLGraph
 
 from sklearn.metrics import f1_score
@@ -83,96 +81,6 @@ class Util:
             )
 
     @classmethod
-    def generate_graph(
-        cls,
-        num_nodes_dict,
-        num_edges_dict,
-        target_node_type,
-        num_classes,
-        num_features=5,
-        correlation=1,
-        train_ratio=0.6,
-        val_ratio=0.2,
-        test_ratio=0.2,
-        random_seed=42,
-    ) -> DGLGraph:
-        data_dict = {}
-
-        # np.random.seed(random_seed)
-        # torch.manual_seed(random_seed * 32)
-
-        edge_types_to_target = []
-
-        # Say we have num_edges_dict = {("author", "author-paper", "paper"): 10000}
-        # This creates {num} edges from 'author' to 'paper'
-        for etype, num in num_edges_dict.items():
-            source_type = etype[0]
-            dest_type = etype[2]
-
-            src_nodes = torch.randint(
-                low=0, high=num_nodes_dict[source_type], size=(num,)
-            )
-            dest_nodes = torch.randint(
-                low=0, high=num_nodes_dict[dest_type], size=(num,)
-            )
-            data_dict[etype] = (src_nodes, dest_nodes)
-
-            if dest_type == target_node_type:
-                edge_types_to_target.append(etype)
-
-        hg = dgl.heterograph(data_dict=data_dict, num_nodes_dict=num_nodes_dict)
-
-        transform = T.Compose([T.ToSimple(), T.AddReverse()])
-        hg = transform(hg)
-
-        num_target_nodes = num_nodes_dict[target_node_type]
-        hg.nodes[target_node_type].data["feat"] = torch.randn(
-            num_target_nodes, num_features
-        )
-
-        for node_type, count in num_nodes_dict.items():
-            if node_type != target_node_type:
-                hg.nodes[node_type].data["feat"] = torch.eye(count, num_features)
-
-        # Assign labels
-        initial_labels = torch.zeros(num_target_nodes, dtype=torch.long)
-
-        node_indices = torch.randperm(num_target_nodes)
-
-        num_dominant = int(correlation * num_target_nodes)
-        initial_labels[node_indices[:num_dominant]] = 0
-
-        remaining_indices = node_indices[num_dominant:]
-        remaining_labels = torch.randint(1, num_classes, size=(len(remaining_indices),))
-        initial_labels[remaining_indices] = remaining_labels
-
-        hg.nodes[target_node_type].data["label"] = initial_labels
-
-        # Create train, val and test masks
-        assert (
-            abs(train_ratio + val_ratio + test_ratio - 1.0) < 1e-6
-        ), "Split ratios must sum to 1"
-
-        indices = torch.randperm(num_target_nodes)
-
-        num_train = int(train_ratio * num_target_nodes)
-        num_val = int(val_ratio * num_target_nodes)
-
-        train_mask = torch.zeros(num_target_nodes, dtype=torch.bool)
-        val_mask = torch.zeros(num_target_nodes, dtype=torch.bool)
-        test_mask = torch.zeros(num_target_nodes, dtype=torch.bool)
-
-        train_mask[indices[:num_train]] = True
-        val_mask[indices[num_train : num_train + num_val]] = True
-        test_mask[indices[num_train + num_val :]] = True
-
-        hg.nodes[target_node_type].data["train_mask"] = train_mask
-        hg.nodes[target_node_type].data["val_mask"] = val_mask
-        hg.nodes[target_node_type].data["test_mask"] = test_mask
-
-        return hg
-
-    @classmethod
     def compute_correlation(cls, g: DGLGraph, target_node_type: str) -> float:
         all_labels = g.nodes[target_node_type].data["label"]
 
@@ -199,7 +107,6 @@ class Util:
                 src_max_freq += max_freq
                 src_total_count += len(target_nodes)
 
-            print(f"{src_type} correlation: {src_max_freq / src_total_count}")
             total_max_freq += src_max_freq
             total_count += src_total_count
 
