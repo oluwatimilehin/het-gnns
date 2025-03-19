@@ -7,6 +7,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from random import randrange, choice
+from typing import List, Dict, Tuple
 
 
 class SimpleGen:
@@ -119,6 +120,36 @@ class SimpleGen:
         hg.multi_update_all(funcs, "sum", apply)  # Sum across edge types for each node
 
         return hg
+
+    @classmethod
+    def get_metapaths(cls, hg: DGLGraph, starting_node_type: str) -> List[List[str]]:
+        # TODO: This looks at one hop, but we can extend it to varying metapath lengths
+        source_to_targets: Dict[str, Dict[str, str]] = {}
+
+        for src_type, etype, dest_type in hg.canonical_etypes:
+            if src_type == dest_type:
+                continue
+            source_to_targets[src_type] = source_to_targets.get(src_type, {}) | {
+                dest_type: etype
+            }
+
+        dests_for_start_node: Dict[str, str] = source_to_targets.get(
+            starting_node_type, {}
+        )
+        metapaths = []
+
+        for target, etype in dests_for_start_node.items():
+            dests_for_target = source_to_targets.get(target, {})
+
+            metapath = [etype]
+            if starting_node_type in dests_for_target:
+                metapath.append(
+                    dests_for_target[starting_node_type]
+                )  # Get the edge that points to the starting node
+
+                metapaths.append(metapath)
+
+        return metapaths
 
     @classmethod
     def __fill(
