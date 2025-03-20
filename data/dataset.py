@@ -23,7 +23,7 @@ from dgl.data.utils import (
 from utils import Util
 
 
-# Source: https://github.com/ZZy979/pytorch-tutorial/blob/master/gnn/data/heco.py
+# Adapted from : https://github.com/ZZy979/pytorch-tutorial/blob/master/gnn/data/heco.py
 class HeCoDataset(DGLDataset):
     """Base class for datasets used in HeCo model
 
@@ -161,7 +161,6 @@ class HeCoDataset(DGLDataset):
         return feats
 
     def has_cache(self):
-        return False
         return os.path.exists(
             os.path.join(self.save_path, self.name + "_dgl_graph.bin")
         )
