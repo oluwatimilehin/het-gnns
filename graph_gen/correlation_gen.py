@@ -1,7 +1,7 @@
+from collections import Counter
 from typing import List, Dict, Tuple
 
 import dgl
-import dgl.function as fn
 from dgl import DGLGraph
 
 import torch
@@ -79,35 +79,7 @@ class CorrelationGen:
         correlation: float,
     ) -> DGLGraph:
         num_target_nodes = hg.num_nodes(target_node_type)
-        initial_labels = torch.randint(0, num_classes, (num_target_nodes,))
-        hg.nodes[target_node_type].data["label"] = initial_labels
+        hg.nodes[target_node_type].data["label"] = torch.zeros(num_target_nodes, dtype=torch.long)
 
-        # Adjust labels to meet target correlation
-        def adjust_labels(graph, correlation, num_classes, target_node_type):
-            labels = graph.nodes[target_node_type].data["label"].clone()
-            current_correlation = Util.compute_correlation(graph, target_node_type)
-
-            for _ in range(50):  # Max iterations to avoid infinite loop
-                if abs(current_correlation - correlation) < 0.01:
-                    break
-
-                node = torch.randint(0, len(labels), (1,)).item()
-                neighbors = []
-                for etype in graph.canonical_etypes:
-                    if etype[2] == target_node_type:
-                        neighbors.extend(graph.predecessors(node, etype=etype).tolist())
-
-                if neighbors:
-                    neighbor_labels = labels[neighbors]
-                    most_common_label = torch.mode(neighbor_labels)[0].item()
-                    if torch.rand(1).item() < correlation:
-                        labels[node] = most_common_label
-                    else:
-                        labels[node] = torch.randint(0, num_classes, (1,)).item()
-
-                graph.nodes[target_node_type].data["label"] = labels
-                current_correlation = Util.compute_correlation(graph, target_node_type)
-
-        adjust_labels(hg, correlation, num_classes, target_node_type)
 
         return hg
