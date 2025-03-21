@@ -1,6 +1,8 @@
 from collections import Counter, namedtuple
 
 import torch
+from torch_sparse import SparseTensor
+from torch_geometric.utils import degree, from_dgl
 
 import dgl
 from dgl.heterograph import DGLGraph
@@ -166,3 +168,112 @@ class Util:
             val, train_size=val_size, random_state=random_state
         )
         return train, val, test
+
+    @classmethod
+    def calcHomophily(cls, hg: DGLGraph, category: str, chunk_size: int = 200):
+        """
+        Determines homophily for a heterogeneous graph as defined by Lin et al. https://arxiv.org/pdf/2407.10916
+        Code adapted from https://github.com/junhongmit/H2GB/blob/main/H2GB/calcHomophily.py
+        """
+        data = from_dgl(hg)
+
+        results = []
+
+        def extract_metapath(edge_types, cur, metapath, hop, task_entity=None):
+            if hop < 1:
+                if task_entity is None:
+                    results.append(metapath)
+                elif cur == task_entity:
+                    results.append(metapath)
+                return
+            for edge_type in edge_types:
+                src, _, dst = edge_type
+                # if src != dst and src == cur:
+                if src == cur:
+                    extract_metapath(
+                        edge_types, dst, metapath + [edge_type], hop - 1, task_entity
+                    )
+            return results
+
+        metapaths = extract_metapath(data.edge_types, category, [], 2, category)
+
+        label = data[category]["label"]
+        device = label.device
+        # Some dataset are not fully labeled. We fill in a random class label
+        num_classes = label.max() + 1
+        mask = label == -1
+        label[mask] = torch.randint(0, num_classes, size=(mask.sum(),), device=device)
+
+        h_edges = []
+        h_insensitives = []
+        h_adjs = []
+        for metapath in metapaths:
+            src, rel, dst = metapath[0]
+            m = data.num_nodes_dict[src]
+            n = data.num_nodes_dict[dst]
+            k = data.num_nodes_dict[src]
+            edge_index_1 = data[metapath[0]].edge_index
+            edge_index_2 = data[metapath[1]].edge_index
+            adj_1 = SparseTensor(
+                row=edge_index_1[0],
+                col=edge_index_1[1],
+                value=None,
+                sparse_sizes=(m, n),
+            ).to(device)
+            adj_2 = SparseTensor(
+                row=edge_index_2[0],
+                col=edge_index_2[1],
+                value=None,
+                sparse_sizes=(n, k),
+            ).to(device)
+
+            # Chunked multiplication
+            num_nodes = label.shape[0]
+            num_edges = 0
+            num_classes = int(label.max()) + 1
+            counts = label.bincount(minlength=num_classes)
+            counts = counts.view(1, num_classes)
+            proportions = counts / num_nodes
+
+            n_rows = adj_1.size(0)
+            nomin, denomin = 0, 0
+            nomin = torch.zeros(num_classes, device=device, dtype=torch.float64)
+            denomin = torch.zeros(num_classes, device=device, dtype=torch.float64)
+            deg = torch.zeros(num_nodes).to(device)
+
+            for i in range(0, n_rows, chunk_size):
+                end = min(i + chunk_size, n_rows)
+                chunk = adj_1[i:end]  # Get the chunk of rows
+                result_chunk = chunk @ adj_2
+
+                row, col, _ = result_chunk.coo()
+                edge_index = torch.stack([row, col], dim=0)
+
+                num_edges += edge_index.shape[1]
+                deg += degree(edge_index[1], num_nodes=num_nodes)
+
+                out = torch.zeros(row.size(0), device=device, dtype=torch.float64)
+                out[label[row + i] == label[col]] = 1.0
+                nomin.scatter_add_(0, label[col], out)
+                denomin.scatter_add_(0, label[col], out.new_ones(row.size(0)))
+
+            if float(denomin.sum()) > 0:
+                h_edge = float(nomin.sum() / denomin.sum())
+                h_insensitive = torch.nan_to_num(nomin / denomin)
+                h_insensitive = float(
+                    (h_insensitive - proportions).clamp_(min=0).sum(dim=-1)
+                )
+                h_insensitive /= num_classes - 1
+
+                degree_sums = torch.zeros(num_classes).to(device)
+                degree_sums.index_add_(dim=0, index=label, source=deg)
+                adjust = (degree_sums**2).sum() / float(num_edges**2)
+                h_adj = (h_edge - adjust) / (1 - adjust)
+
+                h_edges.append(h_edge)
+                h_insensitives.append(h_insensitive)
+                h_adjs.append(h_adj)
+            else:
+                print(f"No existing edge within this metapath subgraph, skip.")
+
+        return sum(h_adjs) / len(h_adjs)

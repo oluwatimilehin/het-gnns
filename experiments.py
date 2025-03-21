@@ -351,6 +351,7 @@ def test_correlation():
     labelled_hg = CorrelationGen.label(hg, category, num_user_classes, correlation)
 
     print(f"Correlation score: {Util.compute_correlation(labelled_hg, category)}")
+
     return
     results = run(labelled_hg, num_features, num_user_classes, category, meta_paths)
 
@@ -371,7 +372,11 @@ def test_standard_datasets():
         hg = data[0]
         category = data.predict_ntype
 
-        print(f"Running {data.name} with correlation score: {data.correlation_score()}")
+        print(
+            f"Running {data.name} with correlation score: {data.correlation_score()} and homophilly: {Util.calcHomophily(hg, category)}"
+        )
+
+        continue
         num_features = hg.nodes[category].data["feat"].shape[1]
         results = run(
             hg, num_features, data.num_classes, category, data.metapaths, num_epochs=50
@@ -381,6 +386,6 @@ def test_standard_datasets():
 
 
 if __name__ == "__main__":
-    test_correlation()
-    # test_standard_datasets()
+    # test_correlation()
+    test_standard_datasets()
     # test_simple_gen()

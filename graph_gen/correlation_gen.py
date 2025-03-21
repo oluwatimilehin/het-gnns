@@ -79,7 +79,8 @@ class CorrelationGen:
         correlation: float,
     ) -> DGLGraph:
         num_target_nodes = hg.num_nodes(target_node_type)
-        hg.nodes[target_node_type].data["label"] = torch.zeros(num_target_nodes, dtype=torch.long)
-
+        hg.nodes[target_node_type].data["label"] = torch.zeros(
+            num_target_nodes, dtype=torch.long
+        )
 
         return hg
