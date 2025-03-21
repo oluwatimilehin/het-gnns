@@ -195,11 +195,13 @@ class Util:
                     )
             return results
 
+        # Sample metapaths: [[('author', 'ap', 'paper'), ('paper', 'pa', 'author')]]
         metapaths = extract_metapath(data.edge_types, category, [], 2, category)
+        # print(f"metapaths: {metapaths}")
 
         label = data[category]["label"]
         device = label.device
-        # Some dataset are not fully labeled. We fill in a random class label
+        # Some datasets are not fully labeled. We fill in a random class label
         num_classes = label.max() + 1
         mask = label == -1
         label[mask] = torch.randint(0, num_classes, size=(mask.sum(),), device=device)
@@ -207,19 +209,23 @@ class Util:
         h_edges = []
         h_insensitives = []
         h_adjs = []
+
         for metapath in metapaths:
             src, rel, dst = metapath[0]
             m = data.num_nodes_dict[src]
             n = data.num_nodes_dict[dst]
             k = data.num_nodes_dict[src]
+
             edge_index_1 = data[metapath[0]].edge_index
             edge_index_2 = data[metapath[1]].edge_index
+
             adj_1 = SparseTensor(
                 row=edge_index_1[0],
                 col=edge_index_1[1],
                 value=None,
                 sparse_sizes=(m, n),
             ).to(device)
+
             adj_2 = SparseTensor(
                 row=edge_index_2[0],
                 col=edge_index_2[1],
@@ -227,35 +233,30 @@ class Util:
                 sparse_sizes=(n, k),
             ).to(device)
 
-            # Chunked multiplication
+        
+            result = adj_1 @ adj_2
+            row, col, _ = result.coo()
+            edge_index = torch.stack([row, col], dim=0)
+
             num_nodes = label.shape[0]
-            num_edges = 0
+            num_edges = edge_index.shape[1]
             num_classes = int(label.max()) + 1
+
+            # Count nodes per class
             counts = label.bincount(minlength=num_classes)
             counts = counts.view(1, num_classes)
             proportions = counts / num_nodes
 
-            n_rows = adj_1.size(0)
-            nomin, denomin = 0, 0
+            deg = degree(edge_index[1], num_nodes=num_nodes)
+
+            out = torch.zeros(row.size(0), device=device, dtype=torch.float64)
+            out[label[row] == label[col]] = 1.0
+
             nomin = torch.zeros(num_classes, device=device, dtype=torch.float64)
             denomin = torch.zeros(num_classes, device=device, dtype=torch.float64)
-            deg = torch.zeros(num_nodes).to(device)
 
-            for i in range(0, n_rows, chunk_size):
-                end = min(i + chunk_size, n_rows)
-                chunk = adj_1[i:end]  # Get the chunk of rows
-                result_chunk = chunk @ adj_2
-
-                row, col, _ = result_chunk.coo()
-                edge_index = torch.stack([row, col], dim=0)
-
-                num_edges += edge_index.shape[1]
-                deg += degree(edge_index[1], num_nodes=num_nodes)
-
-                out = torch.zeros(row.size(0), device=device, dtype=torch.float64)
-                out[label[row + i] == label[col]] = 1.0
-                nomin.scatter_add_(0, label[col], out)
-                denomin.scatter_add_(0, label[col], out.new_ones(row.size(0)))
+            nomin.scatter_add_(0, label[col], out)
+            denomin.scatter_add_(0, label[col], out.new_ones(row.size(0)))
 
             if float(denomin.sum()) > 0:
                 h_edge = float(nomin.sum() / denomin.sum())
