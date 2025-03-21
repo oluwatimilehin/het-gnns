@@ -170,7 +170,7 @@ class Util:
         return train, val, test
 
     @classmethod
-    def calcHomophily(cls, hg: DGLGraph, category: str, chunk_size: int = 200):
+    def calcHomophily(cls, hg: DGLGraph, category: str):
         """
         Determines homophily for a heterogeneous graph as defined by Lin et al. https://arxiv.org/pdf/2407.10916
         Code adapted from https://github.com/junhongmit/H2GB/blob/main/H2GB/calcHomophily.py
@@ -233,43 +233,63 @@ class Util:
                 sparse_sizes=(n, k),
             ).to(device)
 
-        
-            result = adj_1 @ adj_2
+            result = adj_1 @ adj_2  # represents two-hop connections
             row, col, _ = result.coo()
-            edge_index = torch.stack([row, col], dim=0)
+            edge_index = torch.stack(
+                [row, col], dim=0
+            )  # Creates an edge index tensor where each column represents an edge (source, destination).
 
             num_nodes = label.shape[0]
             num_edges = edge_index.shape[1]
             num_classes = int(label.max()) + 1
+
+            out = torch.zeros(
+                row.size(0), device=device, dtype=torch.float64
+            )  # size = num_edges
+            out[label[row] == label[col]] = (
+                1.0  # Set 1 for edges that connect nodes of the same class
+            )
+
+            nomin = torch.zeros(num_classes, device=device, dtype=torch.float64)
+            denomin = torch.zeros(num_classes, device=device, dtype=torch.float64)
+
+            nomin.scatter_add_(
+                0, label[col], out
+            )  # For each class, adds up how many connections go to nodes of the same class.
+            denomin.scatter_add_(
+                0, label[col], out.new_ones(row.size(0))
+            )  # For each class, counts the total number of connections.
 
             # Count nodes per class
             counts = label.bincount(minlength=num_classes)
             counts = counts.view(1, num_classes)
             proportions = counts / num_nodes
 
-            deg = degree(edge_index[1], num_nodes=num_nodes)
-
-            out = torch.zeros(row.size(0), device=device, dtype=torch.float64)
-            out[label[row] == label[col]] = 1.0
-
-            nomin = torch.zeros(num_classes, device=device, dtype=torch.float64)
-            denomin = torch.zeros(num_classes, device=device, dtype=torch.float64)
-
-            nomin.scatter_add_(0, label[col], out)
-            denomin.scatter_add_(0, label[col], out.new_ones(row.size(0)))
+            deg = degree(
+                edge_index[1], num_nodes=num_nodes
+            )  # Computes the in-degree of each node (how many edges point to it); edge_index[1] contains the destination node indices
 
             if float(denomin.sum()) > 0:
+                # Edge homophily: proportion of edges connecting same-class nodes
                 h_edge = float(nomin.sum() / denomin.sum())
+
+                # Class-insensitive homophily: measures how much each class deviates from random mixing
                 h_insensitive = torch.nan_to_num(nomin / denomin)
                 h_insensitive = float(
                     (h_insensitive - proportions).clamp_(min=0).sum(dim=-1)
                 )
                 h_insensitive /= num_classes - 1
 
+                # Adjusted homophily: accounts for class size imbalance
                 degree_sums = torch.zeros(num_classes).to(device)
-                degree_sums.index_add_(dim=0, index=label, source=deg)
-                adjust = (degree_sums**2).sum() / float(num_edges**2)
-                h_adj = (h_edge - adjust) / (1 - adjust)
+                degree_sums.index_add_(
+                    dim=0, index=label, source=deg
+                )  #  Aggregates the degrees of nodes in each class
+
+                adjust = (degree_sums**2).sum() / float(
+                    num_edges**2
+                )  # Calculates the expected homophily in a random graph with the same class distribution
+                h_adj = (h_edge - adjust) / (1 - adjust)  # Normalize the score
 
                 h_edges.append(h_edge)
                 h_insensitives.append(h_insensitive)
