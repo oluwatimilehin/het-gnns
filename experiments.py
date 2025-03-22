@@ -329,8 +329,8 @@ def test_simple_gen():
 
 
 def test_homophily():
-    num_target_nodes = 10
-    num_classes = 3
+    num_target_nodes = 1000
+    num_classes = 5
     num_features = 5
 
     target_node_type = "user"
@@ -340,7 +340,7 @@ def test_homophily():
         [("user", "dislike", "food"), ("food", "disliked_by", "user")],
     ]
 
-    homophily = 0.99
+    homophily = 0.4
     hg = HomophilyGen.generate(
         num_target_nodes,
         num_classes,
@@ -350,15 +350,11 @@ def test_homophily():
         num_features=num_features,
     )
 
-    print(f"HG: {hg}")
-    print(f'user-item edges: {hg.edges(etype="click")}')
-    print(f'item-user edges: {hg.edges(etype="clicked_by")}')
-    print(f'user-food edges: {hg.edges(etype="dislike")}')
     print(
         f"Weighted node homophily: {Util.compute_homophily(hg, target_node_type, metapaths)}"
     )
-    # results = run(labelled_hg, num_features, num_classes, target_node_type, meta_paths)
-    # print(f"results: {results}")
+    results = run(hg, num_features, num_classes, target_node_type, metapaths)
+    print(f"results: {results}")
     return
 
 

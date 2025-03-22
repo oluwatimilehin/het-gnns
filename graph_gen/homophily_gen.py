@@ -63,63 +63,85 @@ class HomophilyGen:
 
         labels = []
 
-        for metapath in metapaths:
-            source_type, etype_1, dest_type = metapath[0]
-            etype_2 = metapath[1][1]
+        # Add nodes incrementally and create edges using preferential attachment
+        for u in range(num_target_nodes):
 
-            for u in range(num_target_nodes):
-                if u >= len(labels):
-                    labels.append(np.random.choice(range(num_classes)))
-                    hg.add_nodes(1, ntype=source_type)
+            labels.append(np.random.choice(range(num_classes)))
+            hg.add_nodes(1, ntype=target_node_type)
 
-                # Get probabilities for neighbors, proportional to in_degree and compatibility
-                valid_neighbours = [v for v in hg.nodes(source_type) if v.item() <= u]
-                scores = np.array(
-                    [
-                        (hg.in_degrees(v.item(), etype=etype_2) + 0.01)
-                        * H[labels[u], labels[v.item()]]
-                        for v in valid_neighbours
-                    ]
-                )
-                # print(f"scores length: {len(scores)}; scores: {scores}")
-                scores /= scores.sum()
+            if u == 0:
+                continue
 
-                num_edges = (
-                    max_neighbours_per_edge_type
-                    if max_neighbours_per_edge_type <= len(valid_neighbours)
-                    else len(valid_neighbours)
-                )
+            for metapath in metapaths:
+                source_type, edge_type_1, intermediate_type = metapath[0]
+                _, edge_type_2, _ = metapath[1]
 
-                vs = np.random.choice(
-                    valid_neighbours,
+                valid_neighbors = list(range(u))  # All nodes added before u
+
+                if not valid_neighbors:
+                    continue
+
+                # Calculate scores based on in-degree and homophily
+                scores = []
+                for v in valid_neighbors:
+                    # Get in-degree of node v for the relevant edge type
+                    in_degree = hg.in_degrees(v, etype=edge_type_2) + 0.01
+
+                    # Calculate homophily score
+                    homophily_score = H[labels[u], labels[v]]
+
+                    # Final score is product of degree and homophily
+                    scores.append(in_degree * homophily_score)
+
+                scores = np.array(scores)
+
+                # Normalize scores
+                if scores.sum() > 0:
+                    scores /= scores.sum()
+                else:
+                    scores = np.ones(len(valid_neighbors)) / len(valid_neighbors)
+
+                # Determine number of connections to make
+                num_edges = min(max_neighbours_per_edge_type, len(valid_neighbors))
+
+                # Sample neighbors based on scores
+                selected_neighbors = np.random.choice(
+                    valid_neighbors,
                     size=num_edges,
                     replace=False,
                     p=scores,
                 )
 
-                # print(f"vs: {vs} for {u} when processing {metapath}")
-                for v in vs:
+                # Create connections for each selected neighbor
+                for v in selected_neighbors:
                     if u == v:
                         continue
 
-                    # print(f"Adding edge between {u} and {v}")
+                    # Create an intermediate node for this metapath
+                    hg.add_nodes(1, ntype=intermediate_type)
+                    intermediate_id = hg.num_nodes(ntype=intermediate_type) - 1
 
-                    hg.add_nodes(1, ntype=dest_type)
+                    # Create the metapath edges
+                    # First hop: u -> intermediate
+                    hg.add_edges(u, intermediate_id, etype=edge_type_1)
 
-                    dest_node_id = hg.num_nodes(ntype=dest_type) - 1
+                    # Second hop: intermediate -> v
+                    hg.add_edges(intermediate_id, v, etype=edge_type_2)
 
-                    # Create the metapath (and reverse edges)
-                    hg.add_edges(u, dest_node_id, etype=etype_1)
-                    hg.add_edges(dest_node_id, u, etype=etype_2)
+                    # Create reverse edges if needed
+                    if len(metapath) > 1:
+                        reverse_edge_1 = metapath[1][
+                            1
+                        ]  # The edge type from intermediate back to u
+                        reverse_edge_2 = metapath[0][
+                            1
+                        ]  # The edge type from v back to intermediate
 
-                    # print(f"edges for {etype_1}: {hg.edges(etype=etype_1)}")
-                    # print(f"edges for {etype_2}: {hg.edges(etype=etype_2)}")
+                        # Add reverse edges
+                        hg.add_edges(intermediate_id, u, etype=reverse_edge_1)
+                        hg.add_edges(v, intermediate_id, etype=reverse_edge_2)
 
-                    hg.add_edges(dest_node_id, v, etype=etype_2)
-                    hg.add_edges(v, dest_node_id, etype=etype_1)
 
-                    # print(f"edges for {etype_1}: {hg.edges(etype=etype_1)}")
-                    # print(f"edges for {etype_2}: {hg.edges(etype=etype_2)}")
 
         print(f"labels: {labels}")
         hg.nodes[target_node_type].data["label"] = torch.tensor(
