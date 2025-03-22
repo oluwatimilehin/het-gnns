@@ -4,6 +4,7 @@ from dgl.data import DGLDataset
 
 from graph_gen.simple_gen import SimpleGen
 from graph_gen.correlation_gen import CorrelationGen
+from graph_gen.homophily_gen import HomophilyGen
 
 from data.acm import ACMDataset
 from data.imdb import IMDbDataset
@@ -327,35 +328,41 @@ def test_simple_gen():
     }
 
 
-def test_correlation():
-    num_user_classes = 3
+def test_homophily():
+    num_target_nodes = 3
+    num_classes = 5
     num_features = 5
-    num_edges_dict = {
-        ("user", "follow", "user"): 3000,
-        ("user", "click", "item"): 5000,
-        ("user", "dislike", "item"): 500,
-    }
-    num_nodes_dict = {"user": 1000, "item": 500}
+    edge_types = [
+        # ("user", "follow", "user"),
+        ("user", "click", "item"),
+        ("user", "dislike", "food"),
+    ]
 
-    category = "user"
-    meta_paths = [["dislike", "rev_dislike"], ["click", "rev_click"]]
+    target_node_type = "user"
 
-    hg = CorrelationGen.generate(
-        num_nodes_dict,
-        num_edges_dict,
-        category,
+    homophily = 0.8
+    hg = HomophilyGen.generate(
+        num_target_nodes,
+        num_classes,
+        edge_types,
+        target_node_type,
+        homophily=homophily,
         num_features=num_features,
     )
 
-    correlation = 0.8
-    labelled_hg = CorrelationGen.label(hg, category, num_user_classes, correlation)
+    metapaths = [
+        # [("user", "follow", "user"), ("user", "rev-follow", "user")],
+        [("user", "click", "item"), ("item", "rev-click", "user")],
+        [("user", "dislike", "food"), ("food", "rev-dislike", "user")],
+    ]
 
-    print(f"Correlation score: {Util.compute_correlation(labelled_hg, category)}")
-
+    print(f"HG: {hg}")
+    print(
+        f"Weighted node homophily: {Util.compute_homophily(hg, target_node_type, metapaths)}"
+    )
+    # results = run(labelled_hg, num_features, num_classes, target_node_type, meta_paths)
+    # print(f"results: {results}")
     return
-    results = run(labelled_hg, num_features, num_user_classes, category, meta_paths)
-
-    print(f"results: {results}")
 
 
 def test_standard_datasets():
@@ -373,7 +380,7 @@ def test_standard_datasets():
         category = data.predict_ntype
 
         print(
-            f"Running {data.name} with correlation score: {data.correlation_score()} and homophilly: {Util.calcHomophily(hg, category)}"
+            f"Running {data.name} with correlation score: {data.correlation_score()} and homophilly: {Util.compute_homophily(hg, category, data.metapaths)}"
         )
 
         continue
@@ -386,6 +393,6 @@ def test_standard_datasets():
 
 
 if __name__ == "__main__":
-    # test_correlation()
-    test_standard_datasets()
+    test_homophily()
+    # test_standard_datasets()
     # test_simple_gen()
