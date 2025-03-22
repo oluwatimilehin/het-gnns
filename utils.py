@@ -1,4 +1,5 @@
 from collections import Counter, namedtuple
+from typing import List
 
 import torch
 from torch_sparse import SparseTensor
@@ -8,7 +9,8 @@ import dgl
 from dgl.heterograph import DGLGraph
 
 from sklearn.metrics import f1_score
-from sklearn.model_selection import train_test_split
+
+from homophily import HomophilyCalculator
 
 
 class EarlyStopping:
@@ -146,69 +148,39 @@ class Util:
         return homogeneous_g
 
     @classmethod
-    def split_idx(cls, samples, train_size, val_size, random_state=None):
-        """Split samples into training, validation, and test sets, satisfying the following conditions (expressed as floating-point numbers):
-
-        * 0 < train_size < 1
-        * 0 < val_size < 1
-        * train_size + val_size < 1
-
-        :param samples: list/ndarray/tensor of samples
-        :param train_size: int or float If it is an integer, it represents the absolute number of training samples; otherwise, it represents the proportion of training samples in the entire dataset
-        :param val_size: int or float If it is an integer, it represents the absolute number of validation samples; otherwise, it represents the proportion of validation samples in the entire dataset
-        :param random_state: int, optional Random seed
-        :return: (train, val, test) with the same type as samples
-        """
-        train, val = train_test_split(
-            samples, train_size=train_size, random_state=random_state
-        )
-        if isinstance(val_size, float):
-            val_size *= len(samples) / len(val)
-        val, test = train_test_split(
-            val, train_size=val_size, random_state=random_state
-        )
-        return train, val, test
-
-    @classmethod
-    def calcHomophily(cls, hg: DGLGraph, category: str):
+    def compute_homophily(cls, hg: DGLGraph, category: str, metapaths: List[List[str]]):
         """
         Determines homophily for a heterogeneous graph as defined by Lin et al. https://arxiv.org/pdf/2407.10916
         Code adapted from https://github.com/junhongmit/H2GB/blob/main/H2GB/calcHomophily.py
         """
         data = from_dgl(hg)
 
-        results = []
+        # results = []
 
-        def extract_metapath(edge_types, cur, metapath, hop, task_entity=None):
-            if hop < 1:
-                if task_entity is None:
-                    results.append(metapath)
-                elif cur == task_entity:
-                    results.append(metapath)
-                return
-            for edge_type in edge_types:
-                src, _, dst = edge_type
-                # if src != dst and src == cur:
-                if src == cur:
-                    extract_metapath(
-                        edge_types, dst, metapath + [edge_type], hop - 1, task_entity
-                    )
-            return results
+        # def extract_metapath(edge_types, cur, metapath, hop, task_entity=None):
+        #     if hop < 1:
+        #         if task_entity is None:
+        #             results.append(metapath)
+        #         elif cur == task_entity:
+        #             results.append(metapath)
+        #         return
+        #     for edge_type in edge_types:
+        #         src, _, dst = edge_type
+        #         if src == cur:
+        #             extract_metapath(
+        #                 edge_types, dst, metapath + [edge_type], hop - 1, task_entity
+        #             )
+        #     return results
 
-        # Sample metapaths: [[('author', 'ap', 'paper'), ('paper', 'pa', 'author')]]
-        metapaths = extract_metapath(data.edge_types, category, [], 2, category)
-        # print(f"metapaths: {metapaths}")
+        # # Sample metapaths: [[('author', 'ap', 'paper'), ('paper', 'pa', 'author')]]
+        # metapaths =
+        print(f"metapaths: {metapaths}")
 
         label = data[category]["label"]
         device = label.device
-        # Some datasets are not fully labeled. We fill in a random class label
-        num_classes = label.max() + 1
-        mask = label == -1
-        label[mask] = torch.randint(0, num_classes, size=(mask.sum(),), device=device)
 
-        h_edges = []
-        h_insensitives = []
-        h_adjs = []
+        node_homs = []
+        edge_homs = []
 
         for metapath in metapaths:
             src, rel, dst = metapath[0]
@@ -239,62 +211,8 @@ class Util:
                 [row, col], dim=0
             )  # Creates an edge index tensor where each column represents an edge (source, destination).
 
-            num_nodes = label.shape[0]
-            num_edges = edge_index.shape[1]
-            num_classes = int(label.max()) + 1
+            node_homs.append(HomophilyCalculator.get_node_homophily(label, edge_index))
+            edge_homs.append(HomophilyCalculator.get_edge_homophily(label, edge_index))
 
-            out = torch.zeros(
-                row.size(0), device=device, dtype=torch.float64
-            )  # size = num_edges
-            out[label[row] == label[col]] = (
-                1.0  # Set 1 for edges that connect nodes of the same class
-            )
-
-            nomin = torch.zeros(num_classes, device=device, dtype=torch.float64)
-            denomin = torch.zeros(num_classes, device=device, dtype=torch.float64)
-
-            nomin.scatter_add_(
-                0, label[col], out
-            )  # For each class, adds up how many connections go to nodes of the same class.
-            denomin.scatter_add_(
-                0, label[col], out.new_ones(row.size(0))
-            )  # For each class, counts the total number of connections.
-
-            # Count nodes per class
-            counts = label.bincount(minlength=num_classes)
-            counts = counts.view(1, num_classes)
-            proportions = counts / num_nodes
-
-            deg = degree(
-                edge_index[1], num_nodes=num_nodes
-            )  # Computes the in-degree of each node (how many edges point to it); edge_index[1] contains the destination node indices
-
-            if float(denomin.sum()) > 0:
-                # Edge homophily: proportion of edges connecting same-class nodes
-                h_edge = float(nomin.sum() / denomin.sum())
-
-                # Class-insensitive homophily: measures how much each class deviates from random mixing
-                h_insensitive = torch.nan_to_num(nomin / denomin)
-                h_insensitive = float(
-                    (h_insensitive - proportions).clamp_(min=0).sum(dim=-1)
-                )
-                h_insensitive /= num_classes - 1
-
-                # Adjusted homophily: accounts for class size imbalance
-                degree_sums = torch.zeros(num_classes).to(device)
-                degree_sums.index_add_(
-                    dim=0, index=label, source=deg
-                )  #  Aggregates the degrees of nodes in each class
-
-                adjust = (degree_sums**2).sum() / float(
-                    num_edges**2
-                )  # Calculates the expected homophily in a random graph with the same class distribution
-                h_adj = (h_edge - adjust) / (1 - adjust)  # Normalize the score
-
-                h_edges.append(h_edge)
-                h_insensitives.append(h_insensitive)
-                h_adjs.append(h_adj)
-            else:
-                print(f"No existing edge within this metapath subgraph, skip.")
-
-        return sum(h_adjs) / len(h_adjs)
+        print(f"node_homs: {node_homs}; edge_homs: {edge_homs}")
+        return sum(node_homs) / len(node_homs), sum(edge_homs) / len(edge_homs)

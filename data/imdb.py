@@ -15,6 +15,7 @@ from dgl.data.utils import (
     idx2mask,
 )
 from sklearn.feature_extraction.text import CountVectorizer
+from sklearn.model_selection import train_test_split
 
 from utils import Util
 
@@ -135,6 +136,29 @@ class IMDbDataset(DGLDataset):
             }
         )
 
+    def _split_idx(self, samples, train_size, val_size, random_state=None):
+        """Split samples into training, validation, and test sets, satisfying the following conditions (expressed as floating-point numbers):
+
+        * 0 < train_size < 1
+        * 0 < val_size < 1
+        * train_size + val_size < 1
+
+        :param samples: list/ndarray/tensor of samples
+        :param train_size: int or float If it is an integer, it represents the absolute number of training samples; otherwise, it represents the proportion of training samples in the entire dataset
+        :param val_size: int or float If it is an integer, it represents the absolute number of validation samples; otherwise, it represents the proportion of validation samples in the entire dataset
+        :param random_state: int, optional Random seed
+        :return: (train, val, test) with the same type as samples
+        """
+        train, val = train_test_split(
+            samples, train_size=train_size, random_state=random_state
+        )
+        if isinstance(val_size, float):
+            val_size *= len(samples) / len(val)
+        val, test = train_test_split(
+            val, train_size=val_size, random_state=random_state
+        )
+        return train, val, test
+
     def _add_ndata(self):
         vectorizer = CountVectorizer(min_df=5)
         features = vectorizer.fit_transform(
@@ -155,7 +179,7 @@ class IMDbDataset(DGLDataset):
         )
 
         n_movies = len(self.movies)
-        train_idx, val_idx, test_idx = Util.split_idx(
+        train_idx, val_idx, test_idx = self._split_idx(
             np.arange(n_movies), 400, 400, self._seed
         )
         self.g.nodes["movie"].data["train_mask"] = generate_mask_tensor(
