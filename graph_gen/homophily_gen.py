@@ -37,12 +37,10 @@ class HomophilyGen:
         cls,
         num_target_nodes: int,
         num_classes: int,
-        edge_types: List[
-            Tuple[str, str, str]
-        ],  # Assumes the source is always the target_node_type; we add the reverse edges in this function
+        metapaths: List[List[Tuple[str, str, str]]],
         target_node_type: str,
-        max_neighbours_per_edge_type: int = 5,
-        homophily: float = 0.1,
+        homophily: float,
+        max_neighbours_per_edge_type: int = 3,
         num_features=5,
         train_split=0.6,
         val_split=0.5,
@@ -56,64 +54,76 @@ class HomophilyGen:
             H.sum(axis=1), np.ones(num_classes), rtol=1e-5, atol=0
         )
 
-        all_edge_types = list(edge_types)
-        for src_type, etype, dest_type in edge_types:
-            all_edge_types.append((dest_type, f"rev-{etype}", src_type))
+        edges = []
+        for metapath in metapaths:
+            edges.extend(metapath)
 
-        hg: DGLGraph = dgl.heterograph(
-            {edge_type: ([], []) for edge_type in all_edge_types}
-        )
-        labels = {}
+        # print(f"edges: {edges}")
+        hg: DGLGraph = dgl.heterograph({edge: ([], []) for edge in edges})
 
-        for source_type, etype, dest_type in edge_types:
-            rev_etype = f"rev-{etype}"
-            print(f"computing: {etype}")
+        labels = []
+
+        for metapath in metapaths:
+            source_type, etype_1, dest_type = metapath[0]
+            etype_2 = metapath[1][1]
+
             for u in range(num_target_nodes):
-                if not u in labels:
-                    labels[u] = np.random.choice(range(num_classes))
+                if u >= len(labels):
+                    labels.append(np.random.choice(range(num_classes)))
                     hg.add_nodes(1, ntype=source_type)
 
                 # Get probabilities for neighbors, proportional to in_degree and compatibility
+                valid_neighbours = [v for v in hg.nodes(source_type) if v.item() <= u]
                 scores = np.array(
                     [
-                        (hg.in_degrees(v.item(), etype=rev_etype) + 0.01)
+                        (hg.in_degrees(v.item(), etype=etype_2) + 0.01)
                         * H[labels[u], labels[v.item()]]
-                        for v in hg.nodes(source_type)
+                        for v in valid_neighbours
                     ]
                 )
+                # print(f"scores length: {len(scores)}; scores: {scores}")
                 scores /= scores.sum()
 
                 num_edges = (
                     max_neighbours_per_edge_type
-                    if max_neighbours_per_edge_type <= hg.num_nodes(source_type)
-                    else hg.num_nodes(source_type)
+                    if max_neighbours_per_edge_type <= len(valid_neighbours)
+                    else len(valid_neighbours)
                 )
 
                 vs = np.random.choice(
-                    hg.nodes(source_type), size=num_edges, replace=False, p=scores
+                    valid_neighbours,
+                    size=num_edges,
+                    replace=False,
+                    p=scores,
                 )
 
-                for v in enumerate(vs):
+                # print(f"vs: {vs} for {u} when processing {metapath}")
+                for v in vs:
+                    if u == v:
+                        continue
+
+                    # print(f"Adding edge between {u} and {v}")
+
                     hg.add_nodes(1, ntype=dest_type)
 
-                    if dest_type == source_type:
-                        labels[hg.num_nodes(dest_type) - 1] = np.random.choice(
-                            range(num_classes)
-                        )
-
-                    dest_node_id = hg.num_nodes() - 1
+                    dest_node_id = hg.num_nodes(ntype=dest_type) - 1
 
                     # Create the metapath (and reverse edges)
-                    hg.add_edges(u, torch.tensor([dest_node_id]), etype=etype)
-                    hg.add_edges(
-                        torch.tensor([dest_node_id]), torch.tensor([u]), etype=rev_etype
-                    )
+                    hg.add_edges(u, dest_node_id, etype=etype_1)
+                    hg.add_edges(dest_node_id, u, etype=etype_2)
 
-                    hg.add_edges(torch.tensor([dest_node_id]), v, etype=rev_etype)
-                    hg.add_edges(v, torch.tensor([dest_node_id]), etype=etype)
+                    # print(f"edges for {etype_1}: {hg.edges(etype=etype_1)}")
+                    # print(f"edges for {etype_2}: {hg.edges(etype=etype_2)}")
 
+                    hg.add_edges(dest_node_id, v, etype=etype_2)
+                    hg.add_edges(v, dest_node_id, etype=etype_1)
+
+                    # print(f"edges for {etype_1}: {hg.edges(etype=etype_1)}")
+                    # print(f"edges for {etype_2}: {hg.edges(etype=etype_2)}")
+
+        print(f"labels: {labels}")
         hg.nodes[target_node_type].data["label"] = torch.tensor(
-            np.array(list(labels.values())), dtype=torch.long
+            np.array(labels), dtype=torch.long
         )
         hg = cls.__fill(hg, num_features, train_split, val_split)
         return hg

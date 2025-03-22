@@ -1,5 +1,5 @@
 from collections import Counter, namedtuple
-from typing import List
+from typing import List, Tuple
 
 import torch
 from torch_sparse import SparseTensor
@@ -148,32 +148,15 @@ class Util:
         return homogeneous_g
 
     @classmethod
-    def compute_homophily(cls, hg: DGLGraph, category: str, metapaths: List[List[str]]):
+    def compute_homophily(
+        cls, hg: DGLGraph, category: str, metapaths: List[List[Tuple[str, str, str]]]
+    ):
         """
         Determines homophily for a heterogeneous graph as defined by Lin et al. https://arxiv.org/pdf/2407.10916
         Code adapted from https://github.com/junhongmit/H2GB/blob/main/H2GB/calcHomophily.py
         """
         data = from_dgl(hg)
 
-        # results = []
-
-        # def extract_metapath(edge_types, cur, metapath, hop, task_entity=None):
-        #     if hop < 1:
-        #         if task_entity is None:
-        #             results.append(metapath)
-        #         elif cur == task_entity:
-        #             results.append(metapath)
-        #         return
-        #     for edge_type in edge_types:
-        #         src, _, dst = edge_type
-        #         if src == cur:
-        #             extract_metapath(
-        #                 edge_types, dst, metapath + [edge_type], hop - 1, task_entity
-        #             )
-        #     return results
-
-        # # Sample metapaths: [[('author', 'ap', 'paper'), ('paper', 'pa', 'author')]]
-        # metapaths =
         print(f"metapaths: {metapaths}")
 
         label = data[category]["label"]
