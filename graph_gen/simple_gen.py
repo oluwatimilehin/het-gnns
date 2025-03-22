@@ -122,7 +122,7 @@ class SimpleGen:
 
     @classmethod
     def get_metapaths(cls, hg: DGLGraph, starting_node_type: str) -> List[List[str]]:
-        # TODO: This looks at one hop, but we can extend it to varying metapath lengths
+        # TODO: This looks at two hops, but we can extend it to varying metapath lengths
         source_to_targets: Dict[str, Dict[str, str]] = {}
 
         for src_type, etype, dest_type in hg.canonical_etypes:
