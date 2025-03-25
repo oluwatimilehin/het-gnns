@@ -1,3 +1,5 @@
+import datetime
+
 from collections import Counter, namedtuple
 from typing import List, Tuple
 
@@ -15,6 +17,10 @@ from homophily import HomophilyCalculator
 
 class EarlyStopping:
     def __init__(self, patience=10):
+        dt = datetime.datetime.now()
+        self.filename = "early_stop_{}_{:02d}-{:02d}-{:02d}.pth".format(
+            dt.date(), dt.hour, dt.minute, dt.second
+        )
         self.patience = patience
         self.counter = 0
         self.best_score = None
@@ -38,7 +44,11 @@ class EarlyStopping:
 
     def save_checkpoint(self, model):
         """Saves model when validation loss decrease."""
-        torch.save(model.state_dict(), "es_checkpoint.pt")
+        torch.save(model.state_dict(), self.filename)
+
+    def load_checkpoint(self, model):
+        """Load the latest checkpoint."""
+        model.load_state_dict(torch.load(self.filename, weights_only=False))
 
 
 Metric = namedtuple("Metric", ["micro_f1", "macro_f1", "accuracy"])

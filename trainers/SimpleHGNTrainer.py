@@ -2,7 +2,7 @@ import torch
 import torch.nn.functional as F
 
 from models.SimpleHGN import SimpleHGN
-from utils import Util
+from utils import Util, EarlyStopping
 
 
 class SimpleHGNTrainer:
@@ -51,6 +51,8 @@ class SimpleHGNTrainer:
     def run(self, num_epochs=200, lr=1e-3, weight_decay=5e-4):
         print(f"Running SimpleHGNTrainer")
 
+        stopper = EarlyStopping(patience=100)
+
         optimizer = torch.optim.Adam(
             params=self.model.parameters(), lr=lr, weight_decay=weight_decay
         )
@@ -81,20 +83,18 @@ class SimpleHGNTrainer:
                     labels[train_mask],
                 )
 
-                val_res = Util.evaluate_dict(
-                    self.g,
-                    self.model,
-                    h_dict,
-                    self.category,
-                    labels,
-                    val_mask,
-                )
+                val_res = Util.accuracy(logits[val_mask], labels[val_mask])
+
+                early_stop = stopper.step(val_res, self.model)
+                if early_stop:
+                    break
 
                 print(
                     f"Epoch {epoch:05d}  | Loss {loss.item():.4f} | "
                     f"TrainAcc {train_acc:.4f} | ValRes: {val_res}"
                 )
 
+        stopper.load_checkpoint(self.model)
         res = Util.evaluate_dict(
             self.g, self.model, h_dict, self.category, labels, test_mask
         )

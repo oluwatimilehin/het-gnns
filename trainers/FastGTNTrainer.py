@@ -2,7 +2,7 @@ import torch
 import torch.nn.functional as F
 
 from models.FastGTN import FastGTN
-from utils import Util
+from utils import Util, EarlyStopping
 
 
 class FastGTNTrainer:
@@ -15,7 +15,7 @@ class FastGTNTrainer:
         num_channels=2,
         gpu=-1,
         hidden_dim=128,
-        num_layers=2,
+        num_layers=3,
         norm=True,
         identity=False,
     ):
@@ -56,6 +56,7 @@ class FastGTNTrainer:
         val_mask = self.g.nodes[self.category].data["val_mask"]
 
         h_dict = {ntype: self.g.nodes[ntype].data["feat"] for ntype in self.g.ntypes}
+        stopper = EarlyStopping(patience=100)
 
         for epoch in range(num_epochs):
             self.model.train()
@@ -76,20 +77,18 @@ class FastGTNTrainer:
                     labels[train_mask],
                 )
 
-                val_res = Util.evaluate_dict(
-                    self.g,
-                    self.model,
-                    h_dict,
-                    self.category,
-                    labels,
-                    val_mask,
-                )
+                val_res = Util.accuracy(logits[val_mask], labels[val_mask])
+
+                early_stop = stopper.step(val_res, self.model)
+                if early_stop:
+                    break
 
                 print(
                     f"Epoch {epoch:05d}  | Loss {loss.item():.4f} | "
                     f"TrainAcc {train_acc:.4f} | ValRes: {val_res}"
                 )
 
+        stopper.load_checkpoint(self.model)
         res = Util.evaluate_dict(
             self.g, self.model, h_dict, self.category, labels, test_mask
         )

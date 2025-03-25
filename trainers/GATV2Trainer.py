@@ -16,7 +16,7 @@ class GATV2Trainer:
         gpu=-1,
         num_heads=4,
         num_out_heads=1,
-        num_layers=2,
+        num_layers=3,
         residual=False,
         input_feature_dropout=0.7,
         attention_dropout=0.7,
@@ -54,16 +54,13 @@ class GATV2Trainer:
         num_epochs=200,
         lr=0.005,
         weight_decay=5e-4,
-        early_stop=False,
-        fast_mode=False,
     ):
         print(f"Running GATTrainer")
         optimizer = torch.optim.Adam(
             params=self.model.parameters(), lr=lr, weight_decay=weight_decay
         )
 
-        if early_stop:
-            stopper = EarlyStopping(patience=100)
+        stopper = EarlyStopping(patience=100)
 
         features = self.g.ndata["feat"]
 
@@ -87,27 +84,18 @@ class GATV2Trainer:
 
             if epoch >= 3:
                 train_acc = Util.accuracy(logits[train_mask], labels[train_mask])
+                val_res = Util.accuracy(logits[val_mask], labels[val_mask])
 
-                if fast_mode:
-                    val_res = Util.accuracy(logits[val_mask], labels[val_mask])
-                else:
-                    val_res = Util.evaluate(
-                        self.g, self.model, features, labels, val_mask
-                    )
-                    if early_stop:
-                        if stopper.step(val_res, self.model):
-                            break
+                early_stop = stopper.step(val_res, self.model)
+                if early_stop:
+                    break
 
                 print(
                     f"Epoch {epoch:05d} | Loss {loss.item():.4f} | "
                     f"TrainAcc {train_acc:.4f} | ValRes: {val_res} "
                 )
 
-        if early_stop:
-            self.model.load_state_dict(
-                torch.load("es_checkpoint.pt", weights_only=False)
-            )
-
+        stopper.load_checkpoint(self.model)
         res = Util.evaluate(self.g, self.model, features, labels, test_mask)
         print(f"Test results: {res}")
 

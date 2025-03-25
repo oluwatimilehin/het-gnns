@@ -3,7 +3,7 @@ import torch
 import torch.nn.functional as F
 
 from models.HAN import HAN
-from utils import Util
+from utils import Util, EarlyStopping
 
 
 class HANTrainer:
@@ -51,6 +51,8 @@ class HANTrainer:
             params=self.model.parameters(), lr=lr, weight_decay=weight_decay
         )
 
+        stopper = EarlyStopping(patience=100)
+
         features = self.g.nodes[self.category].data["feat"]
         labels = self.g.nodes[self.category].data["label"]
         test_mask = self.g.nodes[self.category].data["test_mask"]
@@ -76,19 +78,18 @@ class HANTrainer:
                     labels[train_mask],
                 )
 
-                val_res = Util.evaluate(
-                    self.gs,
-                    self.model,
-                    features,
-                    labels,
-                    val_mask,
-                )
+                val_res = Util.accuracy(logits[val_mask], labels[val_mask])
+
+                early_stop = stopper.step(val_res, self.model)
+                if early_stop:
+                    break
 
                 print(
                     f"Epoch {epoch:05d}  | Loss {loss.item():.4f} | "
                     f"TrainAcc {train_acc:.4f} | ValRes: {val_res}"
                 )
 
+        stopper.load_checkpoint(self.model)
         res = Util.evaluate(self.gs, self.model, features, labels, test_mask)
         print(f"Test results: {res}")
 
