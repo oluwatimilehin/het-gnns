@@ -12,3 +12,4 @@ openhgnn
 --find-links https://data.dgl.ai/wheels/torch-2.3/repo.html
 dgl
 scikit-learn
+matplotlib
