@@ -1,10 +1,15 @@
-from utils import Util, Metric
+from collections import defaultdict
 from typing import Dict, List
+
+import numpy as np
+
 from dgl.data import DGLDataset
 
 from graph_gen.simple_gen import SimpleGen
 from graph_gen.correlation_gen import CorrelationGen
 from graph_gen.homophily_gen import HomophilyGen
+
+from utils import Util, Metric
 
 from data.acm import ACMDataset
 from data.imdb import IMDbDataset
@@ -19,6 +24,10 @@ from trainers.GATV2Trainer import GATV2Trainer
 from trainers.HANTrainer import HANTrainer
 from trainers.HGTTrainer import HGTTrainer
 from trainers.SimpleHGNTrainer import SimpleHGNTrainer
+
+from torch import tensor
+import matplotlib.pyplot as plt
+from scipy.interpolate import make_interp_spline
 
 
 def run(
@@ -354,7 +363,9 @@ def test_homophily():
             num_features=num_features,
         )
 
-        actual_homophily = Util.compute_homophily(hg, target_node_type, metapaths)
+        actual_homophily = Util.compute_homophily(hg, target_node_type, metapaths)[
+            "weighted_node_homs"
+        ]
         print(
             f"Weighted node homophily: {Util.compute_homophily(hg, target_node_type, metapaths)}"
         )
@@ -378,6 +389,7 @@ def test_homophily():
         print(f"Results for {actual_homophily}: {results[actual_homophily]}")
 
     print(f"results: {results}")
+
     results = {
         (tensor(0.1930), tensor(0.1460)): [
             {
@@ -893,14 +905,87 @@ def test_homophily():
         ],
     }
 
+    node_homophily_micro_f1 = {}
+    node_homophily_macro_f1 = {}
+
+    edge_homophily_micro_f1 = {}
+    edge_homophily_macro_f1 = {}
+    for (node_homophily, edge_homophily), homophily_results in results.items():
+        micro_f1_per_model = defaultdict(list)
+        macro_f1_per_model = defaultdict(list)
+
+        for res in homophily_results:
+            for model, metric in res.items():
+                micro_f1_per_model[model].append(metric.accuracy)
+                macro_f1_per_model[model].append(metric.macro_f1)
+
+        mean_micro_f1_per_model = {
+            model: round(np.mean(values), 3)
+            for model, values in micro_f1_per_model.items()
+        }
+
+        mean_macro_f1_per_model = {
+            model: round(np.mean(values), 3)
+            for model, values in macro_f1_per_model.items()
+        }
+
+        rounded_node_hom = round(node_homophily.item(), 2)
+        rounded_edge_hom = round(edge_homophily.item(), 2)
+
+        node_homophily_micro_f1[rounded_node_hom] = mean_micro_f1_per_model
+        node_homophily_macro_f1[rounded_node_hom] = mean_macro_f1_per_model
+
+        edge_homophily_micro_f1[rounded_edge_hom] = mean_micro_f1_per_model
+        edge_homophily_macro_f1[rounded_edge_hom] = mean_macro_f1_per_model
+
+    print(f"Node_homophily_micro_f1: {node_homophily_micro_f1}")
+    print(f"Node_homophily_macro_f1: {node_homophily_macro_f1}")
+
+    print(f"Edge homophily micro f1: {edge_homophily_micro_f1}")
+    print(f"Edge homophily macro f1: {edge_homophily_macro_f1}")
+    plot(node_homophily_micro_f1, x_label="Node Homophily", y_label="Micro-F1 Score")
+    plot(node_homophily_macro_f1, x_label="Node Homophily", y_label="Macro-F1 Score")
+
+    plot(edge_homophily_micro_f1, x_label="Edge Homophily", y_label="Micro-F1 Score")
+    plot(edge_homophily_macro_f1, x_label="Edge Homophily", y_label="Macro-F1 Score")
+
+
+def plot(data: Dict[float, Dict[str, float]], x_label: str, y_label: str):
+    homophily_values = sorted(data.keys())
+    models = data[homophily_values[0]].keys()
+
+    plt.figure(figsize=(10, 6))
+
+    for model in models:
+        scores = [data[h][model] for h in homophily_values]
+        # Create smooth lines using spline interpolation
+        x_new = np.linspace(min(homophily_values), max(homophily_values), 300)
+        spline = make_interp_spline(homophily_values, scores, k=3)
+        y_smooth = spline(x_new)
+        plt.plot(x_new, y_smooth, label=model)
+        # plt.plot(homophily_values, scores, marker="o", label=model)
+
+    plt.xlabel(x_label)
+    plt.ylabel(y_label)
+    # plt.title(f"{x_label} vs {y_label} Score for Different Models")
+    plt.legend(title="Models", loc="best")
+
+    plt.grid(True, linestyle="--", alpha=0.7)
+    plt.tight_layout()
+
+    plt.savefig(
+        f'{x_label.lower().replace(" ", "_")}_{y_label.lower().replace(" ", "_")}.png'
+    )
+    # plt.show()
+
 
 def test_standard_datasets():
     datasets: List[DGLDataset] = [
-        DBLPHeCoDataset,
         ACMDataset,
         FreebaseHeCoDataset,
         AMinerHeCoDataset,
         IMDbDataset,
+        DBLPHeCoDataset,
     ]
 
     results: Dict[str, List[Metric]] = {}
@@ -912,9 +997,10 @@ def test_standard_datasets():
 
         dataset_name = data.name
         # print(f"metapaths: {data.metapaths}")
-        # print(
-        #     f"Running {dataset_name} with correlation score: {data.correlation_score()} and homophily: {Util.compute_homophily(hg, category, data.metapaths)}"
-        # )
+        print(f"{dataset_name}; hg: {hg}")
+        print(
+            f"Running {dataset_name} with correlation score: {data.correlation_score()} and homophily: {Util.compute_homophily(hg, category)}"
+        )
 
         num_features = hg.nodes[category].data["feat"].shape[1]
 
@@ -938,6 +1024,6 @@ def test_standard_datasets():
 
 
 if __name__ == "__main__":
-    test_homophily()
-    # test_standard_datasets()
+    # test_homophily()
+    test_standard_datasets()
     # test_simple_gen()
