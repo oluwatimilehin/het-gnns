@@ -149,21 +149,47 @@ class Util:
 
     @classmethod
     def compute_homophily(
-        cls, hg: DGLGraph, category: str, metapaths: List[List[Tuple[str, str, str]]]
+        cls,
+        hg: DGLGraph,
+        category: str,
+        metapaths: List[List[Tuple[str, str, str]]] = [],
     ):
         """
-        Determines homophily for a heterogeneous graph as defined by Lin et al. https://arxiv.org/pdf/2407.10916
+        Determines homophily for a heterogeneous graph
         Code adapted from https://github.com/junhongmit/H2GB/blob/main/H2GB/calcHomophily.py
+        and https://github.com/emalgorithm/directed-graph-neural-network/blob/main/src/homophily.py
         """
         data = from_dgl(hg)
 
-        print(f"metapaths: {metapaths}")
+        results = []
+
+        def extract_metapath(edge_types, cur, metapath, hop, task_entity=None):
+            if hop < 1:
+                if task_entity is None:
+                    results.append(metapath)
+                elif cur == task_entity:
+                    results.append(metapath)
+                return
+            for edge_type in edge_types:
+                src, _, dst = edge_type
+                # if src != dst and src == cur:
+                if src == cur:
+                    extract_metapath(
+                        edge_types, dst, metapath + [edge_type], hop - 1, task_entity
+                    )
+            return results
+
+        # Sample metapaths: [[('author', 'ap', 'paper'), ('paper', 'pa', 'author')]]
+        if not metapaths:
+            metapaths = extract_metapath(data.edge_types, category, [], 2, category)
+        # print(f"metapaths: {metapaths}")
 
         label = data[category]["label"]
         device = label.device
 
-        node_homs = []
-        edge_homs = []
+        weighted_node_homs = []
+        weighted_edge_homs = []
+        class_adjusted_edge_homs = []
 
         for metapath in metapaths:
             src, rel, dst = metapath[0]
@@ -194,8 +220,20 @@ class Util:
                 [row, col], dim=0
             )  # Creates an edge index tensor where each column represents an edge (source, destination).
 
-            node_homs.append(HomophilyCalculator.get_node_homophily(label, edge_index))
-            edge_homs.append(HomophilyCalculator.get_edge_homophily(label, edge_index))
+            weighted_node_homs.append(
+                HomophilyCalculator.get_weighted_node_homophily(label, edge_index)
+            )
+            weighted_edge_homs.append(
+                HomophilyCalculator.get_weighted_edge_homophily(label, edge_index)
+            )
 
-        print(f"node_homs: {node_homs}; edge_homs: {edge_homs}")
-        return sum(node_homs) / len(node_homs), sum(edge_homs) / len(edge_homs)
+            class_adjusted_edge_homs.append(
+                HomophilyCalculator.get_class_adjusted_homophily(label, edge_index)
+            )
+
+        return {
+            "weighted_node_homs": sum(weighted_node_homs) / len(weighted_node_homs),
+            "weighted_edge_homs": sum(weighted_edge_homs) / len(weighted_edge_homs),
+            "class_adjusted_edge_homs": sum(class_adjusted_edge_homs)
+            / len(class_adjusted_edge_homs),
+        }
