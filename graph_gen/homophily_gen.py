@@ -105,10 +105,11 @@ class HomophilyGen:
                 num_edges = min(max_neighbours_per_edge_type, len(valid_neighbors))
 
                 # Sample neighbors based on scores
+
                 selected_neighbors = np.random.choice(
                     valid_neighbors,
                     size=num_edges,
-                    replace=False,
+                    replace=True,
                     p=scores,
                 )
 
@@ -141,9 +142,6 @@ class HomophilyGen:
                         hg.add_edges(intermediate_id, u, etype=reverse_edge_1)
                         hg.add_edges(v, intermediate_id, etype=reverse_edge_2)
 
-
-
-        print(f"labels: {labels}")
         hg.nodes[target_node_type].data["label"] = torch.tensor(
             np.array(labels), dtype=torch.long
         )
