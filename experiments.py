@@ -40,12 +40,14 @@ def run(
         input_dim=num_features,
         output_dim=n_classes,
         category=category,
+        gpu=0
     ).run(num_epochs)
 
     results["GAT"] = GATV2Trainer(
         Util.to_homogeneous(graph, category),
         input_dim=num_features,
         output_dim=n_classes,
+        gpu=0
     ).run(num_epochs)
 
     results["HAN"] = HANTrainer(
@@ -54,6 +56,7 @@ def run(
         output_dim=n_classes,
         meta_paths=meta_paths,
         category=category,
+        gpu=0
     ).run(num_epochs)
 
     results["HGT"] = HGTTrainer(
@@ -61,6 +64,7 @@ def run(
         input_dim=num_features,
         output_dim=n_classes,
         category=category,
+        gpu=0
     ).run(num_epochs)
 
     results["SimpleHGN"] = SimpleHGNTrainer(
@@ -68,6 +72,7 @@ def run(
         input_dim=num_features,
         output_dim=n_classes,
         category=category,
+        gpu=0
     ).run(num_epochs)
 
     return results

@@ -63,8 +63,8 @@ class Util:
 
     @classmethod
     def micro_macro_f1_score(cls, logits, labels):
-        prediction = torch.argmax(logits, dim=1).long().numpy()
-        labels = labels.numpy()
+        prediction = torch.argmax(logits, dim=1).long().cpu().numpy()
+        labels = labels.cpu().numpy()
         micro_f1 = f1_score(labels, prediction, average="micro")
         macro_f1 = round(f1_score(labels, prediction, average="macro"), 4)
         return (micro_f1, macro_f1)
