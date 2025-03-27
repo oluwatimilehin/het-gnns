@@ -208,11 +208,11 @@ def test_simple_gen():
     varying_node_importance_res = {}
     varying_hom_edge_importance_res = {}
     varying_het_edge_importance_res = {}
-    importances = [math.exp(i / 2.0) for i in range(-4, 5)]
+    importances = [(i / 2.0, math.exp(i / 2.0)) for i in range(-4, 5)]
     # for i in range(0, 100, 2):
-    for i in range(len(importances)):
+    for (logi, importance) in importances:
         # importance = i / 10.0
-        importance = importances[i]
+        # importance = importances[i]
         print(f"Running for importance: {importance}")
         
         # node_labelled_graph = get_labeled_graph(num_features=num_features, n_node_types=n_node_types, n_het_edge_types=n_het_edge_types, n_nodes_per_type=n_nodes_per_type, n_edges_per_type=n_edges_per_type, n_edges_across_types=n_edges_across_types,
@@ -246,9 +246,9 @@ def test_simple_gen():
         #     meta_paths=meta_paths,
         # )
 
-        varying_node_importance_res[i] = run_vary_importances(importance, 1, 1)
-        varying_hom_edge_importance_res[i] = run_vary_importances(1, importance, 1)
-        varying_het_edge_importance_res[i] = run_vary_importances(1, importance, 1)
+        varying_node_importance_res[logi] = run_vary_importances(importance, 1, 1)
+        varying_hom_edge_importance_res[logi] = run_vary_importances(1, importance, 1)
+        varying_het_edge_importance_res[logi] = run_vary_importances(1, importance, 1)
 
         # print(
         #     f"Current results for homogeneous edge importance {importance}: {fixed_node_importance_res}"
