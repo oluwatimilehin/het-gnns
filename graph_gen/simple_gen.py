@@ -65,6 +65,71 @@ class SimpleGen:
         )
 
         return het_graph
+    
+    @classmethod
+    def generate_const_het_edge_types_per_node_type(
+        cls,
+        n_node_types,
+        n_het_edge_types_per_node_type,
+        n_nodes_per_type,
+        n_edges_per_type,
+        n_edges_across_types,
+        n_features=5,
+        train_split=0.6,
+        val_split=0.5,
+    ):
+        node_types = [f"node_type{i}" for i in range(n_node_types)]
+        hom_edge_types = [f"hom_et{i}" for i in range(n_node_types)]
+
+        hom_edges = {}
+        for i in range(n_node_types):
+            edge_type = (node_types[i], hom_edge_types[i], node_types[i])
+
+            edges = (
+                torch.randint(0, n_nodes_per_type, (n_edges_per_type,)),
+                torch.randint(0, n_nodes_per_type, (n_edges_per_type,)),
+            )
+
+            hom_edges[edge_type] = edges
+
+        het_edges = {}
+        for nt in range(n_node_types):
+            for i in range(n_het_edge_types_per_node_type):
+                sink_index = nt
+                source_index = choice([i for i in range(n_node_types) if i != sink_index])
+                # source_index = nt
+                # sink_index = choice([i for i in range(n_node_types) if i != source_index])
+
+                source_node = node_types[source_index]
+                dest_node = node_types[sink_index]
+                edge_type = (source_node, f"{source_node}-{dest_node}", dest_node)
+                reverse_edge_type = (dest_node, f"{dest_node}-{source_node}", source_node)
+
+                edges = (
+                    torch.randint(0, n_nodes_per_type, (n_edges_across_types // 2,)),
+                    torch.randint(0, n_nodes_per_type, (n_edges_across_types // 2,)),
+                )
+                reverse_edges = (
+                    torch.randint(0, n_nodes_per_type, (n_edges_across_types // 2,)),
+                    torch.randint(0, n_nodes_per_type, (n_edges_across_types // 2,)),
+                )
+
+                het_edges[edge_type] = edges
+                het_edges[reverse_edge_type] = reverse_edges
+
+        het_graph = dgl.heterograph(
+            hom_edges | het_edges,
+            num_nodes_dict={ntype: n_nodes_per_type for ntype in node_types},
+        )
+
+        het_graph = cls.__fill(
+            het_graph,
+            n_features=n_features,
+            train_split=train_split,
+            val_split=val_split,
+        )
+
+        return het_graph
 
     @classmethod
     def label(
@@ -149,8 +214,45 @@ class SimpleGen:
                 )  # Get the edge that points to the starting node
 
                 metapaths.append(metapath)
-
+        
+        print("metapaths", metapaths)
         return metapaths
+
+    # @classmethod
+    # def get_metapaths(cls, hg: DGLGraph, starting_node_type: str) -> List[List[str]]:
+    #     # TODO: This looks at two hops, but we can extend it to varying metapath lengths
+    #     # source_to_targets: Dict[str, Dict[str, str]] = {}
+
+    #     # for src_type, etype, dest_type in hg.canonical_etypes:
+    #     #     if src_type == dest_type:
+    #     #         continue
+    #     #     source_to_targets[src_type] = source_to_targets.get(src_type, {}) | {
+    #     #         dest_type: etype
+    #     #     }
+
+    #     # dests_for_start_node: Dict[str, str] = source_to_targets.get(
+    #     #     starting_node_type, {}
+    #     # )
+    #     # metapaths = []
+
+    #     # for target, etype in dests_for_start_node.items():
+    #     #     dests_for_target = source_to_targets.get(target, {})
+
+    #     #     metapath = [etype]
+    #     #     if starting_node_type in dests_for_target:
+    #     #         metapath.append(
+    #     #             dests_for_target[starting_node_type]
+    #     #         )  # Get the edge that points to the starting node
+
+    #     #         metapaths.append(metapath)
+        
+    #     # print("metapaths", metapaths)
+
+    #     metapaths = []
+    #     # for simplicity, we just have metapaths be exactly the edge types. Can extend
+    #     for src_type, etype, dest_type in hg.canonical_etypes:
+    #         metapaths.append([etype])
+    #     return metapaths
 
     @classmethod
     def __fill(

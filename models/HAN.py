@@ -88,6 +88,8 @@ class HANLayer(nn.Module):
         self.semantic_attention = SemanticAttention(in_size=out_size * layer_num_heads)
 
     def forward(self, gs, h):
+        # print(gs)
+        # print(self.gat_layers)
         zp = [gat(g, h).flatten(start_dim=1) for gat, g in zip(self.gat_layers, gs)]
         zp = torch.stack(zp, dim=1)  # (N, M, K*d_out)
         z = self.semantic_attention(zp)  # (N, K*d_out)

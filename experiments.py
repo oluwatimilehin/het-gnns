@@ -31,7 +31,7 @@ from scipy.interpolate import make_interp_spline
 
 
 def run(
-    graph, num_features, n_classes, category, meta_paths, num_epochs=100
+    graph, num_features, n_classes, category, meta_paths, num_epochs=100, hidden_dim = 256
 ) -> Dict[str, Metric]:
     results = {}
 
@@ -41,7 +41,7 @@ def run(
         output_dim=n_classes,
         category=category,
         gpu=0,
-        hidden_dim=192
+        hidden_dim=hidden_dim
     ).run(num_epochs)
 
     results["GAT"] = GATV2Trainer(
@@ -49,7 +49,7 @@ def run(
         input_dim=num_features,
         output_dim=n_classes,
         gpu=0,
-        hidden_dim=192
+        hidden_dim=hidden_dim
     ).run(num_epochs)
 
     results["HAN"] = HANTrainer(
@@ -59,7 +59,7 @@ def run(
         meta_paths=meta_paths,
         category=category,
         gpu=0,
-        hidden_dim=192
+        hidden_dim=hidden_dim
     ).run(num_epochs)
 
     results["HGT"] = HGTTrainer(
@@ -68,7 +68,7 @@ def run(
         output_dim=n_classes,
         category=category,
         gpu=0,
-        hidden_dim=192
+        hidden_dim=hidden_dim
     ).run(num_epochs)
 
     results["SimpleHGN"] = SimpleHGNTrainer(
@@ -77,7 +77,7 @@ def run(
         output_dim=n_classes,
         category=category,
         gpu=0,
-        hidden_dim=192
+        hidden_dim=hidden_dim
     ).run(num_epochs)
 
     return results
@@ -87,14 +87,14 @@ def plot_micro_macro_simple(data, x_label):
     micro_f1 = {}
     macro_f1 = {}
 
-    for x_val, results in results.items():
+    for x_val, results in data.items():
         micro_f1_per_model = defaultdict(list)
         macro_f1_per_model = defaultdict(list)
 
-        # for res in results:
-            # for model, metric in res.items():
-        for model, res in results.items():
-            for metric in res:
+        for res in results:
+            for model, metric in res.items():
+        # for model, res in results.items():
+            # for metric in res:
                 micro_f1_per_model[model].append(metric.micro_f1)
                 macro_f1_per_model[model].append(metric.macro_f1)
 
@@ -111,13 +111,13 @@ def plot_micro_macro_simple(data, x_label):
         micro_f1[x_val] = mean_micro_f1_per_model
         macro_f1[x_val] = mean_macro_f1_per_model
 
-    plot_simple(micro_f1, x_label=x_label, y_label="Micro-F1 Score")
-    plot_simple(macro_f1, x_label=x_label, y_label="Macro-F1 Score")
+    plot(micro_f1, x_label=x_label, y_label="Micro-F1 Score")
+    plot(macro_f1, x_label=x_label, y_label="Macro-F1 Score")
 
-def get_labeled_graph(num_features, n_node_types, n_het_edge_types, n_nodes_per_type, n_edges_per_type, n_edges_across_types, n_classes, i_node, i_hom, i_het):
-    hg = SimpleGen.generate(
+def get_labeled_graph(num_features, n_node_types, n_het_edge_types_per_node_type, n_nodes_per_type, n_edges_per_type, n_edges_across_types, n_classes, i_node, i_hom, i_het):
+    hg = SimpleGen.generate_const_het_edge_types_per_node_type(
         n_node_types=n_node_types,
-        n_het_edge_types=n_het_edge_types,
+        n_het_edge_types_per_node_type=n_het_edge_types_per_node_type,
         n_nodes_per_type=n_nodes_per_type,
         n_edges_per_type=n_edges_per_type,
         n_edges_across_types=n_edges_across_types,
@@ -135,8 +135,8 @@ def get_labeled_graph(num_features, n_node_types, n_het_edge_types, n_nodes_per_
 
     return labelled_node
 
-def run_simple(num_features, n_node_types, n_het_edge_types, n_nodes_per_type, n_edges_per_type, n_edges_across_types, n_classes, i_node, i_hom, i_het):
-    labelled_graph = get_labeled_graph(num_features=num_features, n_classes=n_classes, n_node_types=n_node_types, n_het_edge_types=n_het_edge_types, n_nodes_per_type=n_nodes_per_type, n_edges_per_type=n_edges_per_type, n_edges_across_types=n_edges_across_types,
+def run_simple(num_features, n_node_types, n_het_edge_types_per_node_type, n_nodes_per_type, n_edges_per_type, n_edges_across_types, n_classes, i_node, i_hom, i_het):
+    labelled_graph = get_labeled_graph(num_features=num_features, n_classes=n_classes, n_node_types=n_node_types, n_het_edge_types_per_node_type=n_het_edge_types_per_node_type, n_nodes_per_type=n_nodes_per_type, n_edges_per_type=n_edges_per_type, n_edges_across_types=n_edges_across_types,
             i_node = i_node,
             i_hom = i_hom,
             i_het = i_het)
@@ -150,25 +150,26 @@ def run_simple(num_features, n_node_types, n_het_edge_types, n_nodes_per_type, n
             n_classes=n_classes,
             category=category,
             meta_paths=meta_paths,
+            hidden_dim=64
         )
 
 
 def test_simple_gen():
     def run_vary_importances(i_node, i_hom, i_het):
-        n_runs = 5
+        n_runs = 1
 
         num_features = 20
         num_classes = 5
-        n_node_types = 5
-        n_het_edge_types = 15
-        n_nodes_per_type = 1000
-        n_edges_per_type = 4000
-        n_edges_across_types = 4000
+        n_node_types = 8
+        n_het_edge_types_per_node_type = 2
+        n_nodes_per_type = 200
+        n_edges_per_type = 1000
+        n_edges_across_types = 1000
         
         results = []
 
         for _ in range(n_runs):
-            results.append(run_simple(num_features=num_features, n_classes=num_classes, n_node_types=n_node_types, n_het_edge_types=n_het_edge_types, n_nodes_per_type=n_nodes_per_type, n_edges_per_type=n_edges_per_type, n_edges_across_types=n_edges_across_types,
+            results.append(run_simple(num_features=num_features, n_classes=num_classes, n_node_types=n_node_types, n_het_edge_types_per_node_type=n_het_edge_types_per_node_type, n_nodes_per_type=n_nodes_per_type, n_edges_per_type=n_edges_per_type, n_edges_across_types=n_edges_across_types,
             i_node = i_node,
             i_hom = i_hom,
             i_het = i_het))
@@ -176,62 +177,66 @@ def test_simple_gen():
         return results
 
     # Fixed node importance, varying edge importance test
-    varying_node_importance_res = {}
-    varying_hom_edge_importance_res = {}
-    varying_het_edge_importance_res = {}
-    # for i in range(0, 100, 2):
-    for i in range(0, 22, 4):
-        importance = i / 10.0
-        print(f"Running for homogeneous edge importance factor: {importance}")
+    # varying_node_importance_res = {}
+    # varying_hom_edge_importance_res = {}
+    # varying_het_edge_importance_res = {}
+    # # for i in range(0, 100, 2):
+    # for i in range(0, 22, 4):
+    #     importance = i / 10.0
+    #     print(f"Running for homogeneous edge importance factor: {importance}")
         
-        # node_labelled_graph = get_labeled_graph(num_features=num_features, n_node_types=n_node_types, n_het_edge_types=n_het_edge_types, n_nodes_per_type=n_nodes_per_type, n_edges_per_type=n_edges_per_type, n_edges_across_types=n_edges_across_types,
-        #     i_node = importance,
-        #     i_hom = 1,
-        #     i_het = 1)
+    #     # node_labelled_graph = get_labeled_graph(num_features=num_features, n_node_types=n_node_types, n_het_edge_types=n_het_edge_types, n_nodes_per_type=n_nodes_per_type, n_edges_per_type=n_edges_per_type, n_edges_across_types=n_edges_across_types,
+    #     #     i_node = importance,
+    #     #     i_hom = 1,
+    #     #     i_het = 1)
         
-        # hom_labelled_graph = get_labeled_graph(num_features=num_features, n_node_types=n_node_types, n_het_edge_types=n_het_edge_types, n_nodes_per_type=n_nodes_per_type, n_edges_per_type=n_edges_per_type, n_edges_across_types=n_edges_across_types,
-        #     i_node = 1,
-        #     i_hom = importance,
-        #     i_het = 1)
+    #     # hom_labelled_graph = get_labeled_graph(num_features=num_features, n_node_types=n_node_types, n_het_edge_types=n_het_edge_types, n_nodes_per_type=n_nodes_per_type, n_edges_per_type=n_edges_per_type, n_edges_across_types=n_edges_across_types,
+    #     #     i_node = 1,
+    #     #     i_hom = importance,
+    #     #     i_het = 1)
 
-        # het_labelled_graph = get_labeled_graph(num_features=num_features, n_node_types=n_node_types, n_het_edge_types=n_het_edge_types, n_nodes_per_type=n_nodes_per_type, n_edges_per_type=n_edges_per_type, n_edges_across_types=n_edges_across_types,
-        #     i_node = 1,
-        #     i_hom = 1,
-        #     i_het = importance)
+    #     # het_labelled_graph = get_labeled_graph(num_features=num_features, n_node_types=n_node_types, n_het_edge_types=n_het_edge_types, n_nodes_per_type=n_nodes_per_type, n_edges_per_type=n_edges_per_type, n_edges_across_types=n_edges_across_types,
+    #     #     i_node = 1,
+    #     #     i_hom = 1,
+    #     #     i_het = importance)
 
-        # varying_node_importance_res[importance] = run(
-        #     node_labelled_graph,
-        #     num_features=num_features,
-        #     n_classes=num_classes,
-        #     category=category,
-        #     meta_paths=meta_paths,
-        # )
+    #     # varying_node_importance_res[importance] = run(
+    #     #     node_labelled_graph,
+    #     #     num_features=num_features,
+    #     #     n_classes=num_classes,
+    #     #     category=category,
+    #     #     meta_paths=meta_paths,
+    #     # )
 
-        # varying_node_importance_res[importance] = run(
-        #     node_labelled_graph,
-        #     num_features=num_features,
-        #     n_classes=num_classes,
-        #     category=category,
-        #     meta_paths=meta_paths,
-        # )
+    #     # varying_node_importance_res[importance] = run(
+    #     #     node_labelled_graph,
+    #     #     num_features=num_features,
+    #     #     n_classes=num_classes,
+    #     #     category=category,
+    #     #     meta_paths=meta_paths,
+    #     # )
 
-        varying_node_importance_res[importance] = run_vary_importances(importance, 1, 1)
-        varying_hom_edge_importance_res[importance] = run_vary_importances(1, importance, 1)
-        varying_het_edge_importance_res[importance] = run_vary_importances(1, importance, 1)
+    #     varying_node_importance_res[importance] = run_vary_importances(importance, 1, 1)
+    #     varying_hom_edge_importance_res[importance] = run_vary_importances(1, importance, 1)
+    #     varying_het_edge_importance_res[importance] = run_vary_importances(1, importance, 1)
 
-        # print(
-        #     f"Current results for homogeneous edge importance {importance}: {fixed_node_importance_res}"
-        # )
+    #     # print(
+    #     #     f"Current results for homogeneous edge importance {importance}: {fixed_node_importance_res}"
+    #     # )
     
-    print(
-        f"Results for varying node importance: {varying_node_importance_res}"
-    )
-    print(
-        f"Results for varying hom edge importance: {varying_hom_edge_importance_res}"
-    )
-    print(
-        f"Results for varying het edge importance: {varying_het_edge_importance_res}"
-    )
+    # print(
+    #     f"Results for varying node importance: {varying_node_importance_res}"
+    # )
+    # print(
+    #     f"Results for varying hom edge importance: {varying_hom_edge_importance_res}"
+    # )
+    # print(
+    #     f"Results for varying het edge importance: {varying_het_edge_importance_res}"
+    # )
+
+    varying_node_importance_res = {0.0: [{'FastGTN': Metric(micro_f1=0.3333333333333333, macro_f1=0.1781, accuracy=0.33333), 'GAT': Metric(micro_f1=0.4166666666666667, macro_f1=0.1176, accuracy=0.41667), 'HAN': Metric(micro_f1=0.3888888888888889, macro_f1=0.1143, accuracy=0.38889), 'HGT': Metric(micro_f1=0.4722222222222222, macro_f1=0.2222, accuracy=0.47222), 'SimpleHGN': Metric(micro_f1=0.5, macro_f1=0.2852, accuracy=0.5)}], 0.4: [{'FastGTN': Metric(micro_f1=0.27906976744186046, macro_f1=0.2443, accuracy=0.27907), 'GAT': Metric(micro_f1=0.32558139534883723, macro_f1=0.0982, accuracy=0.32558), 'HAN': Metric(micro_f1=0.3023255813953488, macro_f1=0.121, accuracy=0.30233), 'HGT': Metric(micro_f1=0.4186046511627907, macro_f1=0.3189, accuracy=0.4186), 'SimpleHGN': Metric(micro_f1=0.32558139534883723, macro_f1=0.2921, accuracy=0.32558)}], 0.8: [{'FastGTN': Metric(micro_f1=0.24390243902439024, macro_f1=0.1662, accuracy=0.2439), 'GAT': Metric(micro_f1=0.43902439024390244, macro_f1=0.122, accuracy=0.43902), 'HAN': Metric(micro_f1=0.43902439024390244, macro_f1=0.122, accuracy=0.43902), 'HGT': Metric(micro_f1=0.43902439024390244, macro_f1=0.2169, accuracy=0.43902), 'SimpleHGN': Metric(micro_f1=0.3902439024390244, macro_f1=0.2655, accuracy=0.39024)}], 1.2: [{'FastGTN': Metric(micro_f1=0.525, macro_f1=0.2924, accuracy=0.525), 'GAT': Metric(micro_f1=0.575, macro_f1=0.146, accuracy=0.575), 'HAN': Metric(micro_f1=0.45, macro_f1=0.147, accuracy=0.45), 'HGT': Metric(micro_f1=0.425, macro_f1=0.2207, accuracy=0.425), 'SimpleHGN': Metric(micro_f1=0.475, macro_f1=0.276, accuracy=0.475)}], 1.6: [{'FastGTN': Metric(micro_f1=0.38095238095238093, macro_f1=0.2273, accuracy=0.38095), 'GAT': Metric(micro_f1=0.5, macro_f1=0.1333, accuracy=0.5), 'HAN': Metric(micro_f1=0.5, macro_f1=0.1424, accuracy=0.5), 'HGT': Metric(micro_f1=0.5476190476190477, macro_f1=0.3298, accuracy=0.54762), 'SimpleHGN': Metric(micro_f1=0.40476190476190477, macro_f1=0.2014, accuracy=0.40476)}], 2.0: [{'FastGTN': Metric(micro_f1=0.2, macro_f1=0.1356, accuracy=0.2), 'GAT': Metric(micro_f1=0.275, macro_f1=0.0863, accuracy=0.275), 'HAN': Metric(micro_f1=0.275, macro_f1=0.1644, accuracy=0.275), 'HGT': Metric(micro_f1=0.275, macro_f1=0.2103, accuracy=0.275), 'SimpleHGN': Metric(micro_f1=0.325, macro_f1=0.2829, accuracy=0.325)}]}
+    varying_hom_edge_importance_res = {0.0: [{'FastGTN': Metric(micro_f1=0.32432432432432434, macro_f1=0.257, accuracy=0.32432), 'GAT': Metric(micro_f1=0.43243243243243246, macro_f1=0.1208, accuracy=0.43243), 'HAN': Metric(micro_f1=0.40540540540540543, macro_f1=0.1902, accuracy=0.40541), 'HGT': Metric(micro_f1=0.40540540540540543, macro_f1=0.198, accuracy=0.40541), 'SimpleHGN': Metric(micro_f1=0.35135135135135137, macro_f1=0.2451, accuracy=0.35135)}], 0.4: [{'FastGTN': Metric(micro_f1=0.24444444444444444, macro_f1=0.1993, accuracy=0.24444), 'GAT': Metric(micro_f1=0.28888888888888886, macro_f1=0.0897, accuracy=0.28889), 'HAN': Metric(micro_f1=0.35555555555555557, macro_f1=0.2076, accuracy=0.35556), 'HGT': Metric(micro_f1=0.4, macro_f1=0.3115, accuracy=0.4), 'SimpleHGN': Metric(micro_f1=0.35555555555555557, macro_f1=0.2945, accuracy=0.35556)}], 0.8: [{'FastGTN': Metric(micro_f1=0.35135135135135137, macro_f1=0.1708, accuracy=0.35135), 'GAT': Metric(micro_f1=0.5675675675675675, macro_f1=0.181, accuracy=0.56757), 'HAN': Metric(micro_f1=0.4864864864864865, macro_f1=0.1898, accuracy=0.48649), 'HGT': Metric(micro_f1=0.43243243243243246, macro_f1=0.2175, accuracy=0.43243), 'SimpleHGN': Metric(micro_f1=0.5135135135135135, macro_f1=0.2167, accuracy=0.51351)}], 1.2: [{'FastGTN': Metric(micro_f1=0.28205128205128205, macro_f1=0.1717, accuracy=0.28205), 'GAT': Metric(micro_f1=0.5384615384615384, macro_f1=0.14, accuracy=0.53846), 'HAN': Metric(micro_f1=0.5641025641025641, macro_f1=0.3162, accuracy=0.5641), 'HGT': Metric(micro_f1=0.4358974358974359, macro_f1=0.211, accuracy=0.4359), 'SimpleHGN': Metric(micro_f1=0.41025641025641024, macro_f1=0.3234, accuracy=0.41026)}], 1.6: [{'FastGTN': Metric(micro_f1=0.13333333333333333, macro_f1=0.1175, accuracy=0.13333), 'GAT': Metric(micro_f1=0.26666666666666666, macro_f1=0.0842, accuracy=0.26667), 'HAN': Metric(micro_f1=0.26666666666666666, macro_f1=0.0857, accuracy=0.26667), 'HGT': Metric(micro_f1=0.4, macro_f1=0.3509, accuracy=0.4), 'SimpleHGN': Metric(micro_f1=0.3333333333333333, macro_f1=0.291, accuracy=0.33333)}], 2.0: [{'FastGTN': Metric(micro_f1=0.2571428571428571, macro_f1=0.2154, accuracy=0.25714), 'GAT': Metric(micro_f1=0.2571428571428571, macro_f1=0.15, accuracy=0.25714), 'HAN': Metric(micro_f1=0.3142857142857143, macro_f1=0.1, accuracy=0.31429), 'HGT': Metric(micro_f1=0.45714285714285713, macro_f1=0.4099, accuracy=0.45714), 'SimpleHGN': Metric(micro_f1=0.5142857142857142, macro_f1=0.3997, accuracy=0.51429)}]}
+    varying_het_edge_importance_res = {0.0: [{'FastGTN': Metric(micro_f1=0.3333333333333333, macro_f1=0.1925, accuracy=0.33333), 'GAT': Metric(micro_f1=0.4722222222222222, macro_f1=0.1283, accuracy=0.47222), 'HAN': Metric(micro_f1=0.4722222222222222, macro_f1=0.1283, accuracy=0.47222), 'HGT': Metric(micro_f1=0.4444444444444444, macro_f1=0.128, accuracy=0.44444), 'SimpleHGN': Metric(micro_f1=0.4166666666666667, macro_f1=0.2279, accuracy=0.41667)}], 0.4: [{'FastGTN': Metric(micro_f1=0.813953488372093, macro_f1=0.2244, accuracy=0.81395), 'GAT': Metric(micro_f1=0.9069767441860465, macro_f1=0.3171, accuracy=0.90698), 'HAN': Metric(micro_f1=0.9069767441860465, macro_f1=0.3171, accuracy=0.90698), 'HGT': Metric(micro_f1=0.8604651162790697, macro_f1=0.3083, accuracy=0.86047), 'SimpleHGN': Metric(micro_f1=0.7906976744186046, macro_f1=0.2208, accuracy=0.7907)}], 0.8: [{'FastGTN': Metric(micro_f1=0.24390243902439024, macro_f1=0.1068, accuracy=0.2439), 'GAT': Metric(micro_f1=0.5121951219512195, macro_f1=0.1355, accuracy=0.5122), 'HAN': Metric(micro_f1=0.4878048780487805, macro_f1=0.1379, accuracy=0.4878), 'HGT': Metric(micro_f1=0.36585365853658536, macro_f1=0.18, accuracy=0.36585), 'SimpleHGN': Metric(micro_f1=0.2926829268292683, macro_f1=0.1401, accuracy=0.29268)}], 1.2: [{'FastGTN': Metric(micro_f1=0.3023255813953488, macro_f1=0.2319, accuracy=0.30233), 'GAT': Metric(micro_f1=0.06976744186046512, macro_f1=0.0341, accuracy=0.06977), 'HAN': Metric(micro_f1=0.37209302325581395, macro_f1=0.2195, accuracy=0.37209), 'HGT': Metric(micro_f1=0.3953488372093023, macro_f1=0.2424, accuracy=0.39535), 'SimpleHGN': Metric(micro_f1=0.3488372093023256, macro_f1=0.3191, accuracy=0.34884)}], 1.6: [{'FastGTN': Metric(micro_f1=0.35, macro_f1=0.1672, accuracy=0.35), 'GAT': Metric(micro_f1=0.425, macro_f1=0.1193, accuracy=0.425), 'HAN': Metric(micro_f1=0.475, macro_f1=0.207, accuracy=0.475), 'HGT': Metric(micro_f1=0.375, macro_f1=0.1645, accuracy=0.375), 'SimpleHGN': Metric(micro_f1=0.425, macro_f1=0.2333, accuracy=0.425)}], 2.0: [{'FastGTN': Metric(micro_f1=0.23255813953488372, macro_f1=0.0784, accuracy=0.23256), 'GAT': Metric(micro_f1=0.4418604651162791, macro_f1=0.1226, accuracy=0.44186), 'HAN': Metric(micro_f1=0.4418604651162791, macro_f1=0.1246, accuracy=0.44186), 'HGT': Metric(micro_f1=0.37209302325581395, macro_f1=0.2547, accuracy=0.37209), 'SimpleHGN': Metric(micro_f1=0.3953488372093023, macro_f1=0.3597, accuracy=0.39535)}]}
     
     plot_micro_macro_simple(varying_node_importance_res, "i_node")
     plot_micro_macro_simple(varying_hom_edge_importance_res, "i_hom")
