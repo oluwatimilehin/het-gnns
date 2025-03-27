@@ -72,7 +72,9 @@ class SimpleGen:
         hg: DGLGraph,
         n_classes: int,
         node_feat_importance: float,
-        hom_edge_importance_factor: float,  # i.e. hom edges are 'x' times as important as het edges
+        hom_edge_importance: float,
+        het_edge_importance: float
+        # hom_edge_importance_factor: float,  # i.e. hom edges are 'x' times as important as het edges
     ):
         n_features = hg.nodes[hg.ntypes[0]].data["feat"].shape[1]
 
@@ -95,9 +97,9 @@ class SimpleGen:
 
             node_val = edge_weight(hg.nodes[src_type].data["feat"])
             if src_type == dest_type:
-                node_val = hom_edge_importance_factor * node_val
+                node_val = hom_edge_importance * node_val
             else:
-                node_val = node_val / num_het_edges_per_dest_ntype[dest_type]
+                node_val = het_edge_importance * node_val / num_het_edges_per_dest_ntype[dest_type]
 
             dest_node_weights = node_type_weights[dest_type]
             dest_node_feat = hg.nodes[dest_type].data["feat"]
