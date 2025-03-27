@@ -260,7 +260,13 @@ class SimpleGen:
     ):
         for ntype in hg.ntypes:
             num_nodes = hg.num_nodes(ntype)
-            hg.nodes[ntype].data["feat"] = torch.randn(num_nodes, n_features)
+
+            # here we generate normally distributed random features
+            # hg.nodes[ntype].data["feat"] = torch.randn(num_nodes, n_features)
+
+            # to try to get a bit better signal, especially as the weight matrices are random, doing one hot category for input feature
+            indices = torch.randint(0, n_features, (num_nodes, ))
+            hg.nodes[ntype].data["feat"] = nn.functional.one_hot(indices, n_features).float()
 
             train_mask = torch.bernoulli(torch.ones(num_nodes) * train_split)
             inv_train_mask = 1 - train_mask
